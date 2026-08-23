@@ -26,8 +26,16 @@ vi.mock("@/components/TossRewardAd", () => ({
 
 import SimulateResult from "@/pages/SimulateResult";
 
+// newLoanCount: 0 (not 1) — with newLoanCount: 1 every factor impact cancels out
+// exactly (delta === 0), making every monthlyProjection point equal to both
+// predictedScore and each other. monthlyProjection[5] always equals predictedScore
+// by construction (ratio reaches 1 on the last month), so the result screen shows
+// that final month via the hero instead of repeating it in the list — but a delta
+// of 0 additionally collapses months 1~5 to the same value too, which no rendering
+// of "6 distinct values" could satisfy. newLoanCount: 0 keeps a nonzero delta so
+// the other five months stay distinct.
 const RESULT: SimulationResult = simulate(
-  { currentScore: 820, cardUsageRatio: 25, onTimePaymentMonths: 6, newLoanCount: 1 },
+  { currentScore: 820, cardUsageRatio: 25, onTimePaymentMonths: 6, newLoanCount: 0 },
   { current: 10 },
 );
 
@@ -100,7 +108,9 @@ describe("S6 시뮬레이션 결과 + 보상형 광고 게이트 /simulate/resul
     RESULT.factors.forEach((f, i) => {
       const card = factorCards[i];
       expect(within(card).getByText(f.label)).toBeInTheDocument();
-      const sign = f.impact > 0 ? "+" : f.impact < 0 ? "-" : "";
+      // "+"는 정규식 특수문자라 이스케이프 필요(위 delta 검증과 동일 패턴) — 안 하면
+      // "+3\b" 같은 패턴이 "Nothing to repeat" SyntaxError를 던진다.
+      const sign = f.impact > 0 ? "\\+" : f.impact < 0 ? "-" : "";
       const magnitude = Math.abs(f.impact);
       expect(within(card).getByText(new RegExp(`${sign}${magnitude}\\b`))).toBeInTheDocument();
     });

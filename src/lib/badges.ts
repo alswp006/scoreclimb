@@ -3,6 +3,8 @@ import type { BadgeDefinition, BadgeState } from "@/lib/types";
 /** Context signals badge eligibility is evaluated against. */
 export interface BadgeEvalContext {
   streak: number;
+  /** 시뮬레이션 결과를 1회 이상 조회했는지 여부 */
+  simulated?: boolean;
 }
 
 interface BadgeCatalogEntry extends BadgeDefinition {
@@ -16,6 +18,13 @@ const BADGE_CATALOG: BadgeCatalogEntry[] = [
     description: "3일 연속 미션을 완료했어요",
     icon: "🔥",
     isEligible: (ctx) => ctx.streak >= 3,
+  },
+  {
+    id: "b_simulator",
+    name: "미래 예측가",
+    description: "점수 시뮬레이션 결과를 확인했어요",
+    icon: "🔮",
+    isEligible: (ctx) => ctx.simulated === true,
   },
 ];
 

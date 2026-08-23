@@ -311,27 +311,45 @@ export function mockAppsInToss() {
 
 // ── Toss Reward Ad Component ──
 // TossRewardAd is a project-local component that wraps content behind ad viewing.
-// In tests, render the children directly (ad always "watched").
+// In tests, render the children directly (ad always "watched") inside a
+// data-testid="reward-ad-mock" wrapper carrying data-slot-id — lets tests assert
+// both the gate's presence/slotId and inspect gated content via within(gate).
+//
+// ⚠️ vi.mock() is hoisted to the top of THIS file even though it's written inside
+// this function body — importing any named export from this module (mockTds,
+// mockAppsInToss, ...) is enough to register it, whether or not mockTossRewardAd()
+// is ever called. A test-file-local `vi.mock("@/components/TossRewardAd", ...)`
+// cannot reliably override this registration, so this IS the single source of
+// truth for the mock shape — keep it in sync with any test relying on it.
 export function mockTossRewardAd() {
   vi.mock("@/components/TossRewardAd", () => ({
-    TossRewardAd: ({ children, onReward }: any) => {
-      // Auto-trigger onReward in tests to unlock content
+    TossRewardAd: ({ children, slotId, onReward, onRewarded }: any) => {
+      // Auto-trigger reward callback(s) in tests to unlock content
       if (onReward) setTimeout(onReward, 0);
-      return children;
+      if (onRewarded) setTimeout(onRewarded, 0);
+      return React.createElement(
+        "div",
+        { "data-testid": "reward-ad-mock", "data-slot-id": slotId },
+        children,
+      );
     },
     default: ({ children }: any) => children,
   }));
 }
 
 // ── react-router-dom ──
-// Preserve actual router + override useNavigate/useLocation for assertion.
+// Preserve actual router + override useNavigate for assertion.
 //
 // ⚠️ 이 스텁은 '옵트인'이어야 한다. vitest는 vi.mock을 함수 안에 써도 파일 최상단으로
 // 호이스팅하므로, mockTds()만 쓰려고 이 파일을 import한 테스트에도 라우터 목이 함께
 // 등록된다. 예전 구현은 그 상태에서 무조건 스텁을 돌려줬고, 그 결과 실제 라우팅을
-// 검증하려던 테스트에서 useNavigate()가 아무 데도 이동하지 않고 useLocation()이 항상
-// "/"를 반환해 탭 활성표시·리다이렉트가 조용히 죽었다. 그래서 플래그로 게이트한다 —
-// mockRouter()/mockAll()을 호출한 테스트에서만 스텁이 켜지고, 나머지는 진짜 라우터가 돈다.
+// 검증하려던 테스트에서 useNavigate()가 아무 데도 이동하지 않아 탭 활성표시·리다이렉트가
+// 조용히 죽었다. 그래서 플래그로 게이트한다 — mockRouter()/mockAll()을 호출한 테스트에서만
+// useNavigate 스텁이 켜지고, 나머지는 진짜 라우터가 돈다.
+//
+// useLocation은 항상 실제 훅에 위임한다 — renderWithRouter(ui, { initialEntries: [{ state }] })
+// 로 RouteState를 주입하는 테스트(location.state 읽기 검증)가 mockRouter()와 함께 쓰여도
+// 깨지지 않아야 하며, 어떤 테스트도 고정된 mockLocation 객체 값에 의존하지 않는다.
 let routerStubEnabled = false;
 
 vi.mock("react-router-dom", async () => {
@@ -341,7 +359,7 @@ vi.mock("react-router-dom", async () => {
   return {
     ...actual,
     useNavigate: () => (routerStubEnabled ? mockNavigate : actual.useNavigate()),
-    useLocation: () => (routerStubEnabled ? mockLocation : actual.useLocation()),
+    useLocation: () => actual.useLocation(),
   };
 });
 
