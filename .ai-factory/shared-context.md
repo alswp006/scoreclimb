@@ -223,9 +223,18 @@ export type SaveResult =
     TossRewardAd.tsx
     common.tsx
   hooks/
+    useAppData.ts
   lib/
+    badges.ts
+    benchmark.ts
+    compliance.ts
+    constants.ts
     contract.ts
+    date.ts
+    repository.ts
+    simulate.ts
     storage.ts
+    streak.ts
     types.ts
     utils.ts
   main.tsx
@@ -246,8 +255,16 @@ export type SaveResult =
   vite-env.d.ts
 
 ### Exports (src/lib/)
+- badges.ts: export interface BadgeEvalContext; export function evaluateBadges( prev: BadgeState, ctx: BadgeEvalContext, nowIso: string ):
+- benchmark.ts: export type PeerBand = "20-24" | "25-29" | "30-34" | "35-39" | "40+"; export interface AgeBandBenchmark; export function getBand(birthYear: number, todayKey: string): PeerBand; export function getBenchmark(band: PeerBand): AgeBandBenchmark; export interface PeerComparison; export function compareToPeer( profile: CreditProfile, benchmark: PeerComparisonInput ): PeerComparison; export function recommendMissions( profile: CreditProfile, todayLog: DailyMissionLog ): MissionDefinition[]
+- compliance.ts: export interface ComplianceRule; export type ComplianceRuleId = | 'hex-color' | 'external-navigation' | 'blank-target' | 'promotion-reward' | 'install-pr; export const EXTERNAL_ANALYTICS_PACKAGES: readonly string[] = [ 'google-analytics', 'gtag', 'amplitude', 'mixpanel', 'se; export const PROHIBITED_PATTERNS: readonly ComplianceRule[] = [; export function findComplianceViolations(source: string): ComplianceRuleId[]; export function isProhibitedCopy(text: string): boolean; export function hasAdConfig(): boolean; export function shouldRenderAd(slotIdentifier?: string | null): boolean
+- constants.ts: export const STORAGE_KEYS =; export const MISSION_DEFINITIONS: MissionDefinition[] = [; export type BadgeDefinitionWithCondition = BadgeDefinition &; export const BADGE_DEFINITIONS: BadgeDefinitionWithCondition[] = [; export type PeerBenchmarkBand =; export const PEER_BENCHMARKS: PeerBenchmarkBand[] = [; export const DEFAULT_FLAGS: AppFlags =; export const DEFAULT_STREAK: StreakState =
 - contract.ts: export type RouteState = 'onboarding' | 'home' | 'missions' | 'badges' | 'simulate' | 'simulateResult' | 'report'; export type User =; export type Mission =; export type Activity =; export type Badge =; export type SimulationInput =; export type SimulationResult =; export type getItemFn = <T>(key: string) => T | null
-- storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void
+- date.ts: export function todayKey(date: Date = new Date()): string; export function parseDateKey(key: string): Date; export function diffDays(d1: Date, d2: Date): number; export function isSameDay(d1: Date, d2: Date): boolean; export function addDays(date: Date, days: number): Date
+- repository.ts: export function loadProfile(): CreditProfile | null; export function saveProfile(profile: Omit<CreditProfile, "updatedAt">): SaveResult; export function loadScoreHistory(): ScoreSnapshot[]; export function upsertSnapshot(snapshot: ScoreSnapshot): SaveResult; export function loadMissionLogs(): MissionLogMap; export function saveMissionLog(log: DailyMissionLog): SaveResult; export function loadStreak(): StreakState; export function saveStreak(streak: StreakState): SaveResult
+- simulate.ts: export interface SimulationStreakContext; export function simulate( input: SimulationInput, streak?: SimulationStreakContext ): SimulationResult
+- storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void; export const storage =; export function pruneOldData(): void
+- streak.ts: export const STREAK_ATTENDANCE_THRESHOLD = 3; export function computeStreak( prev: StreakState, todayCompletedCount: number, today: string ): StreakState
 - types.ts: export interface CreditProfile; export interface ScoreSnapshot; export interface MissionDefinition; export type MissionCategory = | "spending" | "saving" | "payment" | "creditUsage" | "debt"; export interface DailyMissionLog; export type MissionLogMap = Record<string, DailyMissionLog>; export interface StreakState; export interface BadgeDefinition
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
 
@@ -259,18 +276,10 @@ export type SaveResult =
 - CountUp.tsx: CountUp
 - FloatingTabBar.tsx: FloatingTabBar
 - MiniBar.tsx: MiniBar
-- PageShell.tsx: PageShell
-- ScreenScaffold.tsx: ScreenScaffold
-- Sparkline.tsx: Sparkline
-- StateView.tsx: EmptyState, LoadingState
-- SummaryHero.tsx: SummaryHero
-- TossPurchase.tsx: TossPurchase
-- TossRewardAd.tsx: TossRewardAd
-- common.tsx: SectionHeader, EmptyState, DisclaimerText, LoadingBlock
+- PageShel...
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
-- 0017: 라우팅 트리 + 부트 게이트 + FloatingTabBar 배선 (files: src/App.tsx)
 - 0001: 데이터 모델 타입 + RouteState 정의 (files: src/lib/types.ts)
 - 0002: 고정 상수 테이블 + 스토리지 키 (files: src/lib/constants.ts)
 - 0003: 스토리지 코어 + 날짜 유틸 (get/set/prune/quota) (files: src/lib/storage.ts, src/lib/date.ts)
@@ -285,86 +294,5 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0013: S4 스트릭 & 배지 화면 /badges (files: src/pages/Badges.tsx)
 - 0014: S5 시뮬레이션 입력 /simulate (files: src/pages/Simulate.tsx)
 - 0016: S7 또래 비교 리포트 /report (files: src/pages/Report.tsx)
-
-## Available exports from existing files
-// src/App.tsx
-export default function App() {
-
-// src/components/AdSlot.tsx
-export function AdSlot({ adGroupId, className, variant, theme }: AdSlotProps) {
-
-// src/components/Amount.tsx
-export function Amount({
-
-// src/components/BottomCTA.tsx
-export function SubmitFooter({
-export function ButtonStack({
-
-// src/components/Card.tsx
-export function Card({
-
-// src/components/CountUp.tsx
-export function CountUp({
-
-// src/components/FloatingTabBar.tsx
-export type TabItem = {
-export function FloatingTabBar({ items }: { items: TabItem[] }) {
-
-// src/components/MiniBar.tsx
-export function MiniBar({
-
-// src/components/PageShell.tsx
-export function PageShell({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-
-// src/components/ScreenScaffold.tsx
-export function ScreenScaffold({
-
-// src/components/Sparkline.tsx
-export function Sparkline({
-
-// src/components/StateView.tsx
-export function EmptyState({
-export function LoadingState({
-
-// src/components/SummaryHero.tsx
-export function SummaryHero({
-
-// src/components/TossPurchase.tsx
-export interface TossPurchaseResult {
-export function TossPurchase({
-
-// src/components/TossRewardAd.tsx
-export function TossRewardAd({
-
-// src/components/common.tsx
-export function SectionHeader({ title }: { title: ReactNode }) {
-export function EmptyState({
-export function DisclaimerText({ text }: { text: ReactNode }) {
-export function LoadingBlock({
-
-// src/hooks/useAppData.ts
-export type SaveProfileInput = Omit<CreditProfile, "updatedAt">;
-export function useAppData(): AppDataState & { actions: AppDataActions } {
-
-// src/lib/badges.ts
-export interface BadgeEvalContext {
-export function evaluateBadges(
-
-// src/lib/benchmark.ts
-export type PeerBand = "20-24" | "25-29" | "30-34" | "35-39" | "40+";
-export interface AgeBandBenchmark {
-export function getBand(birthYear: number, todayKey: string): PeerBand {
-export function getBenchmark(band: PeerBand): AgeBandBenchmark {
-export interface PeerComparison {
-export function compareToPeer
-
-## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
-
-Available topics: deploy(1), general(7), testing(2), ui(4)
-
-Key lessons (verify against actual code before applying):
-- [general] 영속 저장소에서 읽은 값은 항상 스키마 기본값으로 정규화해 배열·객체 타입을 보장한 뒤 반환하고, 화면은 빈/손상/부분 데이터에서도 렌더되도록 방어하라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 정책·기능 제거형 리팩터링은 화면과 도메인 로직 레이어에서만 수행하고, package.json의 플랫폼 필수 의존성(디자인 시스템·플랫폼 SDK·프레임워크 코어)은 어떤 경우에도 삭제하지 말 것 — 필수 패키지 화이트리스트를 빌드 전 가드로 검증하라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 공용 기반 모듈(상수·저장소·계산 유틸)이 실제로 머지되기 전에는 이를 import하는 화면·훅 패킷을 머지하지 말고, 모든 머지 게이트에 타입체크와 프로덕션 빌드 통과(미해결 import 0건)를 필수로 걸어라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 라우팅·Provider·전역 레이아웃 같은 단일 통합 배선 책임은 하나의 워크패킷에만 할당하고, 다른 패킷은 그 위에 페이지 내부 요소만 얹도록 경계를 명확히 나눠라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 여러 페이지 패킷을 병렬로 내보내기 전에, 라우팅·Provider·공유 UI 스캐폴드 계약을 하나의 앱셸 패킷에서 먼저 확정하고 빌드로 스모크 검증하라. (60% · 타 앱 1회 — 맹신 금지)
+- 0017: 라우팅 트리 + 부트 게이트 + FloatingTabBar 배선 (files: src/App.tsx)
+- 0018: 검수 컴플라이언스 스윕 + 빌드 타깃 + 광고 래퍼 점검 (files: vite.config.ts, src/lib/compliance.ts)
