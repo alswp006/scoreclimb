@@ -91,7 +91,23 @@ test("flow: 온보딩 → 홈 → 미션 → 시뮬레이션 → 결과 → 리�
   await page.goto("/");
   await expect(page).toHaveURL(/\/onboarding$/);
 
-  await page.getByRole("button", { name: "시작하기" }).click();
+  // 첫 진입에는 참고용 안내(AlertDialog)가 떠 있다 — 닫기 전에는 뒤 입력이 반응하지 않는다
+  const ack = page.getByRole("button", { name: "확인" });
+  await ack.waitFor({ state: "visible" });
+  await ack.click();
+  await expect(ack).toHaveCount(0);
+
+  // 온보딩은 신용 현황 4개 필드가 모두 유효해야 CTA가 열린다(S1 AC)
+  for (const [testId, value] of [
+    ["score-input", "780"],
+    ["birthYear-input", "1990"],
+    ["cardUsageRatio-input", "30"],
+    ["loanCount-input", "2"],
+  ] as const) {
+    await page.locator(`[data-testid="${testId}"]`).fill(value);
+  }
+
+  await page.getByRole("button", { name: "저장하고 시작하기" }).click();
   await expect(page).toHaveURL(/localhost:5173\/$/);
 
   for (const [tab, url] of [
@@ -107,7 +123,7 @@ test("flow: 온보딩 → 홈 → 미션 → 시뮬레이션 → 결과 → 리�
 
   // 결과 화면은 탭 밖 경로 — 직접 진입해도 나가는 길이 있어야 한다
   await page.goto("/simulate/result");
-  await page.getByRole("button", { name: "시뮬레이션 입력하기" }).click();
+  await page.getByRole("button", { name: "시뮬레이션 하러 가기" }).click();
   await expect(page).toHaveURL(/\/simulate$/);
 
   expect(errors, "전체 순회 중 콘솔 에러").toEqual([]);

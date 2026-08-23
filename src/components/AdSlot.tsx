@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { TossAds } from "@apps-in-toss/web-framework";
+import { shouldRenderAd } from "@/lib/compliance";
 
 interface AdSlotProps {
   /** 광고 그룹 ID — 앱인토스 콘솔에서 발급받아 입력 */
@@ -42,11 +43,17 @@ function ensureInitialized() {
  *
  * 앱인토스 WebView 외 환경(로컬 브라우저, jsdom)에서는 isSupported가 예외를
  * 던지므로 try/catch로 가드 → 조용히 빈 영역 반환(트리 언마운트 방지).
+ *
+ * 콘솔 광고 그룹 ID가 주입되지 않은 빌드(env 미설정)에서는 아무것도 렌더하지 않는다.
+ * undefined id로 attachBanner를 부르면 WebView 안에 빈 배너 자리만 남고, 검수에서
+ * 미완성 화면으로 본다.
  */
 export function AdSlot({ adGroupId, className, variant, theme }: AdSlotProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const configured = shouldRenderAd(adGroupId);
 
   useEffect(() => {
+    if (!configured) return;
     const target = containerRef.current;
     if (!target) return;
     if (!isBannerSupported()) return;
@@ -67,7 +74,9 @@ export function AdSlot({ adGroupId, className, variant, theme }: AdSlotProps) {
         /* cleanup best-effort */
       }
     };
-  }, [adGroupId, variant, theme]);
+  }, [adGroupId, variant, theme, configured]);
+
+  if (!configured) return null;
 
   return <div ref={containerRef} data-ad-group-id={adGroupId} className={className ?? "ad-slot"} />;
 }

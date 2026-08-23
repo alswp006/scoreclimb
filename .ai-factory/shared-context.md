@@ -284,6 +284,7 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0012: S3 미션 체크리스트 /missions (files: src/pages/Missions.tsx)
 - 0013: S4 스트릭 & 배지 화면 /badges (files: src/pages/Badges.tsx)
 - 0014: S5 시뮬레이션 입력 /simulate (files: src/pages/Simulate.tsx)
+- 0016: S7 또래 비교 리포트 /report (files: src/pages/Report.tsx)
 
 ## Available exports from existing files
 // src/App.tsx
