@@ -116,7 +116,7 @@ export interface AppFlags {
 
 /** Save operation result */
 export type SaveResult =
-  | { ok: true }
+  | { ok: true; error?: undefined }
   | { ok: false; error: string };
 
 /** Route state for React Router navigation */
