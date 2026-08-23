@@ -1,0 +1,25 @@
+{
+  "koreanName": "스코어클라임",
+  "englishName": "ScoreClimb",
+  "appName": "score-climb",
+  "ageRating": "만 19세 이상",
+  "supportEmail": "support@aifactory.dev",
+  "category": {
+    "primary": "생활",
+    "secondary": "금융"
+  },
+  "subtitle": "미션으로 신용점수를 올리세요",
+  "description": "토스 신용점수를 연동하여 현황 대시보드에서 확인합니다. 매일 신용 관리 미션(카드 사용률, 연체 방지 등)을 체크리스트로 수행하면서 스트릭을 쌓고 배지를 획득합니다. 또래 평균 신용점수와 비교하는 리포트를 보고, 리워드 광고를 통해 점수 개선 시뮬레이션 결과를 확인하며 신용관리 동기를 유지합니다.",
+  "searchKeywords": [
+    "신용점수",
+    "습관관리",
+    "게임화",
+    "금융",
+    "신용점수올리기",
+    "미션",
+    "스트릭",
+    "신용관리",
+    "신용대출",
+    "카드관리"
+  ]
+}
