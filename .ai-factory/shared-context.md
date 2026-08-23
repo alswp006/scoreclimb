@@ -224,6 +224,7 @@ export type RouteState = {
     SummaryHero.tsx
     TossPurchase.tsx
     TossRewardAd.tsx
+    common.tsx
   hooks/
   lib/
     contract.ts
@@ -261,4 +262,5 @@ export type RouteState = {
 - SummaryHero.tsx: SummaryHero
 - TossPurchase.tsx: TossPurchase
 - TossRewardAd.tsx: TossRewardAd
+- common.tsx: SectionHeader, EmptyState, DisclaimerText, LoadingBlock
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
