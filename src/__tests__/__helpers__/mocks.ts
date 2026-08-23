@@ -26,9 +26,18 @@ export function mockTds() {
     Button: ({ children, onClick, ...props }: any) =>
       React.createElement("button", { onClick, ...props }, children),
 
+    // Real TDS ListRow renders content via left/contents/right render-prop slots
+    // (NOT children) — see node_modules/@toss/tds-mobile .d.ts ListRowProps.
     ListRow: Object.assign(
-      ({ children, onClick, ...props }: any) =>
-        React.createElement("div", { onClick, role: "listitem", ...props }, children),
+      ({ children, left, contents, right, onClick, ...props }: any) =>
+        React.createElement(
+          "div",
+          { onClick, role: "listitem", ...props },
+          left,
+          contents,
+          children,
+          right,
+        ),
       {
         Text: ({ children }: any) => React.createElement("span", null, children),
         Texts: ({ top, bottom, type }: any) =>
@@ -123,11 +132,12 @@ export function mockTds() {
     ),
 
     Top: Object.assign(
-      ({ children, title }: any) =>
+      ({ children, title, right }: any) =>
         React.createElement(
           "nav",
           { role: "navigation" },
           title && React.createElement("h1", null, title),
+          right,
           children,
         ),
       {
@@ -162,11 +172,13 @@ export function mockTds() {
       { Header: ({ children }: any) => React.createElement("div", null, children) },
     ),
 
-    Chip: ({ children, selected, onClick }: any) =>
+    // Real TDS Chip is typically used as <Chip label="..." variant="filled|outlined" />.
+    // Fall back to children for the ChipItem-style usage some pages may use.
+    Chip: ({ children, label, selected, variant, onClick }: any) =>
       React.createElement(
         "button",
-        { role: "button", "aria-pressed": selected, onClick },
-        children,
+        { role: "button", "aria-pressed": selected, "data-variant": variant, onClick },
+        children ?? label,
       ),
 
     Switch: ({ checked, onChange }: any) =>
