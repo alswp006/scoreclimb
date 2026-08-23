@@ -1,0 +1,646 @@
+[
+  {
+    "id": "0001",
+    "title": "데이터 모델 타입 + RouteState 정의",
+    "epic": "Epic 1. 타입 & 상수",
+    "task": {
+      "description": "src/lib/types.ts에 SPEC Data Models 전체(CreditProfile, ScoreSnapshot, MissionCategory/MissionDefinition, DailyMissionLog/MissionLogMap, StreakState, BadgeDefinition/BadgeState, SimulationInput/FactorDirection/SimulationFactor/SimulationResult, PeerBenchmark, AppFlags)와 SaveResult, RouteState를 선언한다. 순수 타입 선언만 작성하고 런타임 값·함수·enum은 금지한다. 숫자 필드에는 허용 범위를 JSDoc으로 표기한다.",
+      "acceptance_criteria": [
+        "src/lib/types.ts가 존재하고 tsc --noEmit 통과, 파일에 런타임 export(const/function/enum)가 0건이다",
+        "RouteState['/simulate/result']가 { result: SimulationResult } | undefined 로 정의되고 나머지 6개 경로 키('/onboarding','/','/missions','/badges','/simulate','/report')가 모두 존재한다",
+        "SaveResult = { ok: true } | { ok: false; error: string } 가 export 되어 있다",
+        "score(350~1000), birthYear(1960~2010), cardUsageRatio(0~100), loanCount(0~10) 각 필드에 JSDoc 범위 주석이 붙어 있다",
+        "파일 내 정규식 #[0-9a-fA-F]{3,8} 매칭이 0건이다"
+      ]
+    },
+    "covers": [
+      "AC-G5",
+      "F1 데이터 모델"
+    ],
+    "files": [
+      "src/lib/types.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "types.ts는 타입 전용이라 번들 산출물에 기여하는 런타임 코드 0바이트"
+    ],
+    "depends_on": [],
+    "db_schema": "interface CreditProfile { score:number; birthYear:number; cardUsageRatio:number; loanCount:number; updatedAt:string } / ScoreSnapshot{date,score} / DailyMissionLog{date,completedMissionIds,totalPoints} / MissionLogMap=Record<string,DailyMissionLog> / StreakState{current,longest,lastCompletedDate,totalCompletedMissions} / BadgeState{unlockedBadgeIds,unlockedAt} / SimulationResult{input,predictedScore,delta,monthlyProjection,factors,createdAt} / AppFlags{onboardingDone,disclaimerAckedAt} → localStorage keys: scoreclimb.*.v1 (타입만 정의, 저장 로직 없음)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0002",
+    "title": "고정 상수 테이블 + 스토리지 키",
+    "epic": "Epic 1. 타입 & 상수",
+    "task": {
+      "description": "src/lib/constants.ts에 STORAGE_KEYS(정확히 7개, as const), MISSION_DEFINITIONS 6종(points 합 12), BADGE_DEFINITIONS 6종, PEER_BENCHMARKS 5밴드, 기본값 DEFAULT_FLAGS/DEFAULT_STREAK/DEFAULT_BADGES, 상한 상수 MAX_MISSION_LOG_DAYS=180, MAX_SCORE_HISTORY=90, PRUNE_MISSION_LOG_DAYS=90, PRUNE_SCORE_HISTORY_DAYS=60을 선언한다. types.ts의 타입만 import 한다.",
+      "acceptance_criteria": [
+        "Object.values(STORAGE_KEYS).length === 7 이고 전부 'scoreclimb.' 접두사 + '.v1' 접미사를 가진다",
+        "MISSION_DEFINITIONS.length === 6, points 합계 === 12, id가 m_card_usage/m_no_late/m_auto_pay/m_no_cash_advance/m_score_check/m_debt_plan 과 정확히 일치한다",
+        "BADGE_DEFINITIONS.length === 6 이고 condition이 totalMissions:1, streak:3, streak:7, streak:30, totalMissions:50, simulation:1 이다",
+        "PEER_BENCHMARKS가 20-24:720/42, 25-29:780/38, 30-34:830/34, 35-39:860/31, 40+:875/29 값을 가진다",
+        "Array.prototype.at / Object.groupBy / structuredClone / findLast 를 사용하지 않는다"
+      ]
+    },
+    "covers": [
+      "F1-AC-1",
+      "AC-G7"
+    ],
+    "files": [
+      "src/lib/constants.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "HEX 색상 문자열 0건"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "STORAGE_KEYS = { profile:'scoreclimb.profile.v1', scoreHistory:'scoreclimb.scoreHistory.v1', missionLogs:'scoreclimb.missionLogs.v1', streak:'scoreclimb.streak.v1', badges:'scoreclimb.badges.v1', lastSimulation:'scoreclimb.lastSimulation.v1', flags:'scoreclimb.flags.v1' } as const",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0003",
+    "title": "스토리지 코어 + 날짜 유틸 (get/set/prune/quota)",
+    "epic": "Epic 2. 데이터 계층",
+    "task": {
+      "description": "src/lib/storage.ts에 storage.get<T>(key, fallback, guard?) (JSON.parse 실패·가드 실패 시 fallback 반환 + 키가 존재했을 때만 fallback으로 덮어쓰기)와 storage.set<T>(key, value): SaveResult (QuotaExceededError catch → pruneOldData() → setItem 1회 재시도), pruneOldData()를 구현한다. src/lib/date.ts에 todayKey(), parseDateKey, diffDays, addDays를 로컬 타임존 기준으로 구현한다. console.error 호출 금지.",
+      "acceptance_criteria": [
+        "localStorage['scoreclimb.streak.v1']='null}}' 상태에서 storage.get(KEY, DEFAULT_STREAK, isStreakState) 호출 시 예외 없이 기본값을 반환하고 해당 키가 기본값 JSON으로 덮어써진다",
+        "완전히 빈 localStorage에서 storage.get을 3회 호출해도 setItem 호출이 0회다",
+        "setItem이 첫 호출에 QuotaExceededError를 던지도록 모킹하면 pruneOldData()가 1회 실행되고 재시도가 정확히 1회 발생하며, 재시도도 실패하면 {ok:false,error:'저장 공간이 부족해요'}를 반환한다",
+        "todayKey()가 로컬 자정 기준 YYYY-MM-DD를 반환하고 toISOString() 기반 UTC 변환을 쓰지 않는다",
+        "storage.ts, date.ts에 console.error 호출이 0건이다"
+      ]
+    },
+    "covers": [
+      "F1-AC-1",
+      "F1-AC-4",
+      "F1-AC-5",
+      "F1-AC-6",
+      "AC-G11",
+      "AC-G12"
+    ],
+    "files": [
+      "src/lib/storage.ts",
+      "src/lib/date.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "pruneOldData가 missionLogs 90일 이전, scoreHistory 60일 이전 항목을 삭제한다"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "generic: storage.get<T>(key: string, fallback: T, guard?: (v:unknown)=>v is T): T / storage.set<T>(key: string, value: T): SaveResult → localStorage keys from STORAGE_KEYS (7개)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0004",
+    "title": "엔티티 CRUD + 범위 검증 타입가드",
+    "epic": "Epic 2. 데이터 계층",
+    "task": {
+      "description": "src/lib/repository.ts에 엔티티별 load/save 함수와 수동 타입가드(zod 미사용)를 구현한다. loadProfile/saveProfile, loadScoreHistory/upsertSnapshot, loadMissionLogs/saveMissionLog, loadStreak/saveStreak, loadBadges/saveBadges, loadLastSimulation/saveLastSimulation, loadFlags/saveFlags. 저장 함수는 범위 검증 실패 시 저장하지 않고 한국어 메시지의 SaveResult를 반환한다.",
+      "acceptance_criteria": [
+        "saveProfile({score:820,birthYear:1996,cardUsageRatio:45,loanCount:1}) → {ok:true} 이고 loadProfile().score===820, updatedAt이 new Date(v).toString()!=='Invalid Date'인 ISO 문자열이다",
+        "saveProfile({score:1200,...}) → 저장 없이 {ok:false,error:'점수는 350~1000 사이여야 해요'} 반환, localStorage['scoreclimb.profile.v1'] 미변경",
+        "위반 메시지가 birthYear→'출생연도는 1960~2010 사이여야 해요', cardUsageRatio→'카드 사용률은 0~100 사이여야 해요', loanCount→'대출 건수는 0~10 사이여야 해요' 와 정확히 일치한다",
+        "missionLogs 200일치가 있는 상태에서 새 날짜 1개를 saveMissionLog로 추가하면 Object.keys().length===180 이 되고 오래된 날짜부터 삭제된다",
+        "빈 localStorage에서 loadFlags()==={onboardingDone:false,disclaimerAckedAt:null}, loadMissionLogs()==={}, loadBadges()==={unlockedBadgeIds:[],unlockedAt:{}} 이고 setItem 호출이 0회다",
+        "오늘 항목이 있는 상태에서 upsertSnapshot({date:오늘,score:835}) → 배열 길이 불변, 오늘 항목 score만 835로 변경"
+      ]
+    },
+    "covers": [
+      "F1-AC-2",
+      "F1-AC-3",
+      "F1-AC-6",
+      "F1-AC-7"
+    ],
+    "files": [
+      "src/lib/repository.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "모든 저장소 접근이 storage.ts를 경유하고 localStorage 직접 호출이 0건"
+    ],
+    "depends_on": [
+      "0003"
+    ],
+    "db_schema": "CreditProfile → 'scoreclimb.profile.v1' / ScoreSnapshot[] (max 90, FIFO) → 'scoreclimb.scoreHistory.v1' / MissionLogMap (max 180 days) → 'scoreclimb.missionLogs.v1' / StreakState → 'scoreclimb.streak.v1' / BadgeState → 'scoreclimb.badges.v1' / SimulationResult → 'scoreclimb.lastSimulation.v1' / AppFlags → 'scoreclimb.flags.v1'",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0005",
+    "title": "스트릭 & 배지 도메인 순수 함수",
+    "epic": "Epic 2. 데이터 계층",
+    "task": {
+      "description": "src/lib/streak.ts에 computeStreak(prev, todayCompletedCount, today)를, src/lib/badges.ts에 evaluateBadges(prev, ctx, nowIso)를 순수 함수로 구현한다. 출석 판정은 완료 미션 수 ≥ 3. 같은 날 재호출 시 current 불변, 1일 차이면 +1, 2일 이상 또는 미래 날짜면 1로 리셋. longest = max(longest, current). totalCompletedMissions는 체크 이벤트당 +1.",
+      "acceptance_criteria": [
+        "computeStreak({current:4,longest:6,lastCompletedDate:어제,totalCompletedMissions:20}, 3, 오늘) → {current:5,longest:6,lastCompletedDate:오늘,totalCompletedMissions:21}",
+        "{current:9,longest:9,lastCompletedDate:2일전} + 오늘 3번째 체크 → current===1, longest===9, lastCompletedDate===오늘",
+        "lastCompletedDate가 미래(2026-08-30), today가 2026-08-24 → current===1, lastCompletedDate==='2026-08-24', console.error 0회, 예외 0건",
+        "evaluateBadges(prev={unlockedBadgeIds:['b_first']}, {streak:3,...}) → newlyUnlocked.length===1 이고 newlyUnlocked[0].name==='사흘의 힘', next.unlockedAt['b_streak3']가 ISO 문자열",
+        "동일 인자로 evaluateBadges 재호출 시 newlyUnlocked.length===0 (멱등)"
+      ]
+    },
+    "covers": [
+      "F5-AC-2",
+      "F5-AC-3",
+      "F5-AC-7"
+    ],
+    "files": [
+      "src/lib/streak.ts",
+      "src/lib/badges.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "두 파일 모두 localStorage/React import 0건 (순수 함수)"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "StreakState{current,longest,lastCompletedDate,totalCompletedMissions} / BadgeState{unlockedBadgeIds:string[], unlockedAt:Record<string,string>} — 순수 계산만, 저장은 repository 담당",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0006",
+    "title": "시뮬레이션 계산 엔진 simulate()",
+    "epic": "Epic 2. 데이터 계층",
+    "task": {
+      "description": "src/lib/simulate.ts에 결정론적 순수 함수 simulate(input: SimulationInput): SimulationResult를 구현한다. 카드 사용률·정시납부 개월·신규대출 건수·현재점수 4개 요인에서 가감분을 계산해 factors(길이 4)를 만들고, predictedScore는 350~1000으로 클램프, delta=predictedScore-currentScore, monthlyProjection은 길이 6의 단조 보간 배열(각 350~1000 클램프)로 만든다. Math.random/Date.now 등 비결정 요소 사용 금지(createdAt만 호출 시각 ISO).",
+      "acceptance_criteria": [
+        "동일한 SimulationInput으로 simulate()를 100회 호출하면 createdAt을 제외한 모든 필드가 100회 모두 완전히 동일하다",
+        "factors.length===4 이고 각 항목의 direction이 impact>0이면 'up', impact<0이면 'down', 0이면 'flat'과 일치한다",
+        "monthlyProjection.length===6 이고 모든 원소가 350 이상 1000 이하 정수이며 마지막 원소 === predictedScore",
+        "currentScore:1000, cardUsageRatio:0, onTimePaymentMonths:24, newLoanCount:0 입력에도 predictedScore가 1000을 넘지 않는다",
+        "소스에 Math.random, fetch, LLM/AI 호출이 0건이다"
+      ]
+    },
+    "covers": [
+      "AC-G1",
+      "F6 산식"
+    ],
+    "files": [
+      "src/lib/simulate.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "simulate.ts에 React/localStorage import 0건"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "SimulationInput{currentScore:350~1000, cardUsageRatio:0~100, onTimePaymentMonths:0~24, newLoanCount:0~5} → SimulationResult{input, predictedScore, delta, monthlyProjection:number[6], factors:SimulationFactor[4], createdAt} → 저장 키 'scoreclimb.lastSimulation.v1'",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0007",
+    "title": "또래 벤치마크 비교 + 추천 미션 로직",
+    "epic": "Epic 2. 데이터 계층",
+    "task": {
+      "description": "src/lib/benchmark.ts에 순수 함수 getBand(birthYear, todayKey): PeerBenchmark['band'], getBenchmark(band): PeerBenchmark, compareToPeer(profile, benchmark): { scoreDiff:number; usageDiff:number; scoreVerdict:'above'|'similar'|'below' }, recommendMissions(profile, todayLog): MissionDefinition[] (최대 3개, 미완료 미션 중 카드 사용률/대출 상황에 따라 우선순위 정렬)을 구현한다.",
+      "acceptance_criteria": [
+        "birthYear=1996, today='2026-08-24' → 나이 30 → band '30-34' 반환, birthYear=2005 → '20-24', birthYear=1980 → '40+'",
+        "compareToPeer({score:850,...}, {band:'30-34',avgScore:830,avgCardUsageRatio:34}) → scoreDiff===20, scoreVerdict==='above' (차이 절대값 10 이하이면 'similar')",
+        "recommendMissions는 항상 length<=3 이고 todayLog.completedMissionIds에 포함된 미션을 결과에 포함하지 않는다",
+        "오늘 6개 미션을 모두 완료한 상태에서 recommendMissions가 빈 배열을 반환하고 예외를 던지지 않는다",
+        "benchmark.ts에 React/localStorage import가 0건이다"
+      ]
+    },
+    "covers": [
+      "F8-AC-1",
+      "F8-AC-5",
+      "F4 추천"
+    ],
+    "files": [
+      "src/lib/benchmark.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "PEER_BENCHMARKS 상수만 참조하고 값을 재정의하지 않음"
+    ],
+    "depends_on": [
+      "0002"
+    ],
+    "db_schema": "PeerBenchmark{band:'20-24'|'25-29'|'30-34'|'35-39'|'40+', avgScore:number, avgCardUsageRatio:number} — 코드 상수, 저장 안 함",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0008",
+    "title": "앱 상태 훅 useAppData",
+    "epic": "Epic 2. 데이터 계층",
+    "task": {
+      "description": "src/hooks/useAppData.ts에 앱 전역 데이터 훅을 구현한다. 마운트 시 repository에서 profile/scoreHistory/missionLogs/streak/badges/flags를 1회 로드해 상태로 보관하고 loading 플래그를 제공한다. toggleMission(missionId), saveProfileAndSnapshot(input), ackDisclaimer(), completeOnboarding(), recordSimulation(result) 액션을 제공하며 저장 실패 시 SaveResult를 그대로 반환한다.",
+      "acceptance_criteria": [
+        "훅 초기 렌더에서 loading===true 이고 로드 완료 후 loading===false 로 정확히 1회 전이한다",
+        "toggleMission을 호출하면 오늘자 DailyMissionLog의 completedMissionIds가 토글되고 totalPoints가 완료 미션 points 합과 일치하며, 3번째 체크 시 computeStreak/evaluateBadges가 호출된다",
+        "같은 미션을 두 번 토글하면 completedMissionIds에서 제거되고 totalPoints가 감소하지만 streak.totalCompletedMissions는 감소하지 않는다",
+        "저장 실패 시 액션이 {ok:false,error:...}를 반환하고 훅 내부에서 예외를 던지지 않는다",
+        "훅 파일에 TDS UI 컴포넌트 import가 0건이다"
+      ]
+    },
+    "covers": [
+      "F1-AC-6",
+      "F4-AC-1",
+      "F5-AC-1"
+    ],
+    "files": [
+      "src/hooks/useAppData.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "모든 저장소 접근이 repository.ts 경유"
+    ],
+    "depends_on": [
+      "0004",
+      "0005"
+    ],
+    "db_schema": "MissionLogMap → 'scoreclimb.missionLogs.v1', StreakState → 'scoreclimb.streak.v1', BadgeState → 'scoreclimb.badges.v1', AppFlags → 'scoreclimb.flags.v1' (repository 경유)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0009",
+    "title": "공용 UI 프리미티브 (섹션헤더/빈상태/고지문)",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/components/common.tsx에 화면 공통 조각을 TDS만으로 만든다. SectionHeader(title), EmptyState(iconName, message, ctaLabel, onCta), DisclaimerText(text), LoadingBlock(). 색상은 var(--tds-color-*)만 사용하고 TDS 컴포넌트에 padding/margin 인라인 덮어쓰기를 하지 않는다. 간격은 TDS Spacing size prop으로만 조절한다.",
+      "acceptance_criteria": [
+        "SectionHeader는 Paragraph.Text typography=\"t4\"와 Spacing size={12} 조합으로만 구성되고 인라인 padding/margin이 0건이다",
+        "EmptyState는 Asset.ContentIcon + Paragraph.Text + Button(size=\"large\") 구성이고 이모지 문자가 0건이다",
+        "DisclaimerText는 Paragraph.Text typography=\"st13\" color=\"tertiary\"로 렌더된다",
+        "파일 내 HEX 색상(#xxxxxx) 매칭 0건, shadcn/MUI/Ant/Chakra import 0건",
+        "LoadingBlock이 TDS Skeleton 또는 Paragraph.Text 기반 플레이스홀더를 렌더하고 콘솔 경고 없이 마운트된다"
+      ]
+    },
+    "covers": [
+      "AC-G5",
+      "AC-G10"
+    ],
+    "files": [
+      "src/components/common.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "모든 UI가 @toss/tds-mobile 컴포넌트로만 구성"
+    ],
+    "depends_on": [],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "TDS 전용 프리미티브. 사용 컴포넌트: Paragraph, Spacing, Button, Asset.ContentIcon, Skeleton. 규칙: TDS 컴포넌트에 Tailwind/inline padding·margin 덮어쓰기 금지, 간격은 Spacing size={n}만. 색상은 var(--tds-color-*)만. 터치 요소 44px 이상(Button size=\"large\" 기본값 유지). 문구는 해요체 캐주얼 경어."
+  },
+  {
+    "id": "0010",
+    "title": "S1 온보딩 화면 /onboarding",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/pages/Onboarding.tsx에 신용 현황 입력 화면을 만든다. 신용점수/출생연도/카드사용률/대출건수 4개 TextField를 검증하고, 4개 모두 유효할 때만 CTA를 활성화한다. 저장 시 프로필 + 오늘자 ScoreSnapshot + flags.onboardingDone=true를 기록하고 navigate('/', { replace: true })한다. 첫 진입 시 참고값 고지 AlertDialog를 1회 노출한다.",
+      "acceptance_criteria": [
+        "score에 1200 입력 시 TextField hasError=true 이고 help가 '350~1000 사이 숫자로 입력해요'로 바뀌며 CTA가 disabled 상태다",
+        "4개 필드가 모두 유효 범위이면 CTA가 활성화되고, 탭 시 generateHapticFeedback({type:'success'}) 호출 후 navigate('/',{replace:true})가 1회 실행된다",
+        "저장 실패(SaveResult.ok===false) 시 Toast position=\"bottom\"에 '저장 공간이 부족해요. 오래된 기록을 정리했어요'가 표시되고 화면 전환이 일어나지 않는다",
+        "flags.disclaimerAckedAt===null 이면 AlertDialog가 1회 열리고 '확인' 탭 시 ISO 시각이 저장되어 재진입 시 다시 열리지 않는다",
+        "CTA 1회 클릭 후 저장 완료 전 재클릭이 무시되어 중복 저장이 발생하지 않는다"
+      ]
+    },
+    "covers": [
+      "F2-AC-1",
+      "F2-AC-2",
+      "F2-AC-3",
+      "AC-G11"
+    ],
+    "files": [
+      "src/pages/Onboarding.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "HEX 색상 0건, 외부 링크 0건"
+    ],
+    "depends_on": [
+      "0008"
+    ],
+    "db_schema": "CreditProfile → 'scoreclimb.profile.v1', ScoreSnapshot[] → 'scoreclimb.scoreHistory.v1', AppFlags → 'scoreclimb.flags.v1' (repository/useAppData 경유)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: FixedBottomCTA. Whitelist: Top, Paragraph, Spacing, TextField, Button, AlertDialog, Toast.\nLayout:\n<Top title={<Top.TitleParagraph>신용 현황을 알려주세요</Top.TitleParagraph>} />\n<Paragraph.Text typography=\"st11\" color=\"secondary\">토스 앱에서 확인한 점수를 그대로 입력하면 돼요</Paragraph.Text>\n<Spacing size={24} />\n<TextField variant=\"box\" label=\"신용점수 (KCB)\" value={score} help={scoreError ?? \"350~1000 사이 숫자로 입력해요\"} hasError={!!scoreError} />\n<Spacing size={16} />\n<TextField variant=\"box\" label=\"출생연도\" help={birthError ?? \"1960~2010 사이로 입력해요\"} hasError={!!birthError} />\n<Spacing size={16} />\n<TextField variant=\"box\" label=\"카드 사용률 (%)\" help={usageError ?? \"0~100 사이로 입력해요\"} hasError={!!usageError} />\n<Spacing size={16} />\n<TextField variant=\"box\" label=\"대출 건수\" help={loanError ?? \"0~10건까지 입력할 수 있어요\"} hasError={!!loanError} />\n<Spacing size={24} />\n<Paragraph.Text typography=\"st13\" color=\"tertiary\">입력한 값은 이 기기에만 저장돼요. 앱이 보여주는 점수는 참고값이에요</Paragraph.Text>\n<Spacing size={96} />\n고정 CTA: <div style={{position:'fixed',bottom:0,left:0,right:0,padding:16,paddingBottom:'calc(16px + env(safe-area-inset-bottom))',backgroundColor:'var(--tds-color-background)'}}><Button variant=\"fill\" size=\"large\" color=\"primary\">시작하기</Button></div>\n<AlertDialog open={showDisclaimer} title=\"참고용 안내\" description=\"이 앱의 점수·예측은 입력값 기반 참고값이에요. 실제 신용평가 결과와 달라요\" alertButton={<AlertDialog.AlertButton onClick={ack}>확인</AlertDialog.AlertButton>} onClose={ack} />\n<Toast open={saveFailed} position=\"bottom\" />\nStates — Loading: 없음(저장 중 CTA 재클릭 무시). Empty: 해당 없음. Error: 필드별 TextField hasError+help, 저장 실패 시 Toast.\nInteractions: 4필드 유효할 때만 CTA 활성화, 성공 햅틱, navigate('/',{replace:true})."
+  },
+  {
+    "id": "0011",
+    "title": "S2 홈 대시보드 /",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/pages/Home.tsx에 신용점수 현황 대시보드를 만든다. SummaryHero로 현재 점수와 스트릭 문구를 보여주고, 오늘 미션 진행 요약(완료 수/획득 점수) 2열, 추천 미션 상위 3개 ListRow, 미션 전체 보기 버튼, 하단 배너 AdSlot, FloatingTabBar(active='home')를 배치한다. 모든 이동은 navigate()만 사용한다.",
+      "acceptance_criteria": [
+        "profile.score가 SummaryHero의 Amount value로 렌더되고 caption에 `${streak.current}일 연속 미션 달성 중이에요`가 표시된다",
+        "오늘 미션 요약이 `${done}/6 완료`와 `${todayPoints}/12점` 형식으로 렌더되고 미션 토글 후 값이 즉시 갱신된다",
+        "추천 미션 ListRow 최대 3개가 렌더되고 완료 항목은 Chip label='완료' variant='filled', 미완료는 label='하기' variant='outlined'로 구분된다",
+        "AdSlot에 adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}가 전달되고 Border 아래 콘텐츠 최하단에 위치한다",
+        "loading 상태에서 Hero value 자리에 Paragraph.Text typography='t1' color='tertiary'로 '—'가 표시되고 흰 화면이 발생하지 않는다"
+      ]
+    },
+    "covers": [
+      "F3-AC-1",
+      "F3-AC-2",
+      "F3-AC-3"
+    ],
+    "files": [
+      "src/pages/Home.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "window.open/target=_blank 0건, HEX 0건"
+    ],
+    "depends_on": [
+      "0008"
+    ],
+    "db_schema": "CreditProfile, StreakState, MissionLogMap 읽기 전용 (useAppData 경유)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: PageShell + StatusPanel. Whitelist: Top, SummaryHero, Amount, Spacing, Paragraph, ListRow, Chip, Badge, Button, Border, AdSlot, FloatingTabBar.\nLayout:\n<Top title={<Top.TitleParagraph>ScoreClimb</Top.TitleParagraph>} right={<Button variant=\"weak\" size=\"small\" onClick={()=>navigate('/onboarding')}>현황 수정</Button>} />\n<SummaryHero label=\"내 신용점수\" value={<Amount value={profile.score} unit=\"점\" typography=\"t1\" />} caption={`${streak.current}일 연속 미션 달성 중이에요`} />\n<Spacing size={16} />\n<div style={{display:'flex',gap:8}}>\n  <ListRow contents={<ListRow.Texts type=\"2RowTypeA\" top=\"오늘 미션\" bottom={`${done}/6 완료`} />} />\n  <ListRow contents={<ListRow.Texts type=\"2RowTypeA\" top=\"오늘 점수\" bottom={`${todayPoints}/12점`} />} />\n</div>\n<Spacing size={24} />\n<Paragraph.Text typography=\"t4\">오늘의 미션</Paragraph.Text>\n<Spacing size={12} />\n{todayTop3.map(m => <ListRow key={m.id} onClick={()=>navigate('/missions')} contents={<ListRow.Texts type=\"2RowTypeA\" top={m.title} bottom={`+${m.points}점`} />} right={m.done ? <Chip label=\"완료\" variant=\"filled\" /> : <Chip label=\"하기\" variant=\"outlined\" />} />)}\n<Spacing size={16} />\n<Button variant=\"weak\" size=\"large\" onClick={()=>navigate('/missions')}>미션 전체 보기</Button>\n<Spacing size={24} /><Border /><Spacing size={16} />\n<AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID} />\n<Spacing size={96} />\n<FloatingTabBar active=\"home\" />\nStates — Loading: Hero value 자리에 Paragraph.Text typography=\"t1\" color=\"tertiary\">—</Paragraph.Text>. Empty: 프로필 없으면 온보딩으로 이동. Error: Toast.\nInteractions: 탭 전환 시 generateHapticFeedback({type:'tickWeak'}), 이동은 navigate()만."
+  },
+  {
+    "id": "0012",
+    "title": "S3 미션 체크리스트 /missions",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/pages/Missions.tsx에 오늘의 데일리 미션 6종 체크리스트를 만든다. 각 미션을 ListRow + Switch(또는 체크 Chip)로 토글하고, 상단에 오늘 획득 점수/12점 진행 요약을 표시한다. 토글 시 useAppData.toggleMission을 호출하고 tickWeak 햅틱을 준다. 3개째 완료 시 스트릭 달성 Toast를 띄운다.",
+      "acceptance_criteria": [
+        "MISSION_DEFINITIONS 6종이 모두 ListRow로 렌더되고 각 행에 title, description, +N점이 표시된다",
+        "미션 토글 후 새로고침해도 localStorage의 오늘자 로그에서 완료 상태가 복원된다",
+        "3번째 미션을 완료하는 순간 Toast에 '오늘 출석 완료! 연속 N일이에요' 형식 메시지가 1회 표시된다",
+        "상단 요약이 획득 점수 합계/12점으로 표시되고 토글마다 즉시 갱신된다",
+        "모든 토글 요소의 높이가 44px 이상이고 Switch에 tickWeak 햅틱이 연결된다"
+      ]
+    },
+    "covers": [
+      "F4-AC-1",
+      "F4-AC-2",
+      "F5-AC-1"
+    ],
+    "files": [
+      "src/pages/Missions.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "TDS 외 UI 라이브러리 import 0건"
+    ],
+    "depends_on": [
+      "0008"
+    ],
+    "db_schema": "DailyMissionLog{date,completedMissionIds,totalPoints} → 'scoreclimb.missionLogs.v1', StreakState → 'scoreclimb.streak.v1' (useAppData 경유)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: PageShell + Checklist. Whitelist: Top, Paragraph, Spacing, ListRow, Switch, Chip, Border, Toast, FloatingTabBar.\nLayout:\n<Top title={<Top.TitleParagraph>오늘의 미션</Top.TitleParagraph>} />\n<Paragraph.Text typography=\"st11\" color=\"secondary\">{`오늘 ${todayPoints}/12점 모았어요`}</Paragraph.Text>\n<Spacing size={16} />\n{MISSION_DEFINITIONS.map(m => (\n  <ListRow key={m.id} contents={<ListRow.Texts type=\"2RowTypeA\" top={m.title} bottom={`${m.description} · +${m.points}점`} />} right={<Switch checked={done.has(m.id)} onChange={()=>toggle(m.id)} />} />\n))}\n<Spacing size={24} /><Border /><Spacing size={16} />\n<Paragraph.Text typography=\"st13\" color=\"tertiary\">미션 3개 이상 완료하면 오늘 출석으로 기록돼요</Paragraph.Text>\n<Spacing size={96} />\n<FloatingTabBar active=\"missions\" />\nStates — Loading: ListRow 자리 Skeleton. Empty: 없음(고정 6종). Error: 저장 실패 시 Toast '저장 공간이 부족해요. 오래된 기록을 정리했어요'.\nInteractions: Switch 토글에 generateHapticFeedback({type:'tickWeak'}), 3개째 완료 시 Toast로 스트릭 안내. 간격은 Spacing만, ListRow에 padding prop 사용 금지."
+  },
+  {
+    "id": "0013",
+    "title": "S4 스트릭 & 배지 화면 /badges",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/pages/Badges.tsx에 연속 출석 현황과 배지 6종 갤러리를 만든다. 상단에 현재 스트릭/최장 스트릭/누적 완료 미션 수를 요약하고, 배지는 획득/미획득으로 구분해 그리드로 나열한다. 미획득 배지는 조건 문구를 표시하고 흐리게 처리한다(TDS color 토큰 사용).",
+      "acceptance_criteria": [
+        "BADGE_DEFINITIONS 6종이 모두 렌더되고 unlockedBadgeIds에 포함된 배지는 획득 표시 + unlockedAt 날짜(YYYY.MM.DD)가 함께 보인다",
+        "미획득 배지에는 condition 기반 문구(예: '3일 연속 달성하면 열려요')가 표시된다",
+        "상단 요약에 streak.current, streak.longest, streak.totalCompletedMissions 3개 값이 모두 표시된다",
+        "획득 배지가 0개일 때 EmptyState 대신 6개 잠금 카드가 렌더되고 흰 화면/예외가 발생하지 않는다",
+        "배지 카드 시각 요소에 이모지가 0건이고 Asset.ContentIcon을 사용한다"
+      ]
+    },
+    "covers": [
+      "F5-AC-4",
+      "F5-AC-5"
+    ],
+    "files": [
+      "src/pages/Badges.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "HEX 색상 0건"
+    ],
+    "depends_on": [
+      "0008"
+    ],
+    "db_schema": "BadgeState{unlockedBadgeIds,unlockedAt} → 'scoreclimb.badges.v1', StreakState → 'scoreclimb.streak.v1' (읽기 전용)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: PageShell + Gallery. Whitelist: Top, SummaryHero, Paragraph, Spacing, ListRow, Chip, Badge, Border, Asset.ContentIcon, FloatingTabBar.\nLayout:\n<Top title={<Top.TitleParagraph>스트릭과 배지</Top.TitleParagraph>} />\n<SummaryHero label=\"연속 출석\" value={<Amount value={streak.current} unit=\"일\" typography=\"t1\" />} caption={`최장 ${streak.longest}일 · 누적 미션 ${streak.totalCompletedMissions}개`} />\n<Spacing size={24} />\n<Paragraph.Text typography=\"t4\">배지</Paragraph.Text>\n<Spacing size={12} />\n<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>\n  {BADGE_DEFINITIONS.map(b => (\n    <ListRow key={b.id} left={<Asset.ContentIcon name=\"...\" />} contents={<ListRow.Texts type=\"2RowTypeA\" top={b.name} bottom={unlocked(b.id) ? formatDate(unlockedAt[b.id]) : b.description} />} right={unlocked(b.id) ? <Chip label=\"획득\" variant=\"filled\" /> : <Chip label=\"잠김\" variant=\"outlined\" />} />\n  ))}\n</div>\n<Spacing size={96} />\n<FloatingTabBar active=\"home\" />\nStates — Loading: Skeleton 카드 6개. Empty: 잠금 카드 6개(빈 화면 금지). Error: Toast.\nInteractions: 카드 탭 시 조건 안내 Toast 1회. 색상은 var(--tds-color-*)만, 흐림 처리는 Paragraph color=\"tertiary\"로."
+  },
+  {
+    "id": "0014",
+    "title": "S5 시뮬레이션 입력 /simulate",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/pages/Simulate.tsx에 점수 개선 시뮬레이션 입력 화면을 만든다. 현재점수(프로필 기본값), 카드 사용률, 정시납부 개월 수, 신규 대출 건수를 입력받아 검증하고, CTA 탭 시 simulate()를 호출한 뒤 navigate('/simulate/result', { state: { result } })로 RouteState 타입에 맞춰 전달한다. 하단에 참고값 고지를 둔다.",
+      "acceptance_criteria": [
+        "프로필이 있으면 현재점수·카드 사용률 필드가 프로필 값으로 프리필된다",
+        "범위를 벗어난 입력(예: onTimePaymentMonths=30)에서 TextField hasError=true 이고 CTA가 disabled 상태다",
+        "CTA 탭 시 generateHapticFeedback({type:'success'}) 호출 후 navigate('/simulate/result', { state: { result } })가 1회 실행되며 state 타입이 RouteState['/simulate/result']와 일치한다",
+        "화면 하단에 '실제 평가 결과와 다를 수 있어요' 문구가 Paragraph.Text typography='st13' color='tertiary'로 상시 노출된다",
+        "고정 CTA에 paddingBottom: 'calc(16px + env(safe-area-inset-bottom))'가 적용된다"
+      ]
+    },
+    "covers": [
+      "F6-AC-1",
+      "F6-AC-2",
+      "AC-G2"
+    ],
+    "files": [
+      "src/pages/Simulate.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "외부 링크 0건, navigate()만 사용"
+    ],
+    "depends_on": [
+      "0006",
+      "0008"
+    ],
+    "db_schema": "SimulationInput{currentScore,cardUsageRatio,onTimePaymentMonths,newLoanCount} — 저장하지 않고 navigate state로 전달, 결과는 결과 화면에서 'scoreclimb.lastSimulation.v1'에 저장",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: FixedBottomCTA. Whitelist: Top, Paragraph, Spacing, TextField, Chip, Button, Border, FloatingTabBar.\nLayout:\n<Top title={<Top.TitleParagraph>점수 시뮬레이션</Top.TitleParagraph>} />\n<Paragraph.Text typography=\"st11\" color=\"secondary\">조건을 바꾸면 6개월 뒤 점수를 예측해요</Paragraph.Text>\n<Spacing size={24} />\n<TextField variant=\"box\" label=\"현재 점수\" help={\"350~1000 사이로 입력해요\"} />\n<Spacing size={16} />\n<TextField variant=\"box\" label=\"카드 사용률 (%)\" help={\"0~100 사이로 입력해요\"} />\n<Spacing size={16} />\n<TextField variant=\"box\" label=\"정시 납부 개월\" help={\"0~24개월까지 입력할 수 있어요\"} />\n<Spacing size={16} />\n<TextField variant=\"box\" label=\"신규 대출 건수\" help={\"0~5건까지 입력할 수 있어요\"} />\n<Spacing size={24} />\n<Paragraph.Text typography=\"st13\" color=\"tertiary\">이 예측은 입력값 기반 참고값이에요. 실제 평가 결과와 다를 수 있어요</Paragraph.Text>\n<Spacing size={96} />\n고정 CTA: <div style={{position:'fixed',bottom:0,left:0,right:0,padding:16,paddingBottom:'calc(16px + env(safe-area-inset-bottom))',backgroundColor:'var(--tds-color-background)'}}><Button variant=\"fill\" size=\"large\" color=\"primary\">결과 보기</Button></div>\n<FloatingTabBar active=\"simulate\" />\nStates — Loading: 없음(즉시 계산). Empty: 프로필 없으면 기본값 700/40/0/0. Error: 필드별 hasError+help.\nInteractions: 유효할 때만 CTA 활성화, success 햅틱 후 navigate('/simulate/result',{state:{result}})."
+  },
+  {
+    "id": "0015",
+    "title": "S6 시뮬레이션 결과 + 보상형 광고 게이트 /simulate/result",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/pages/SimulateResult.tsx에 시뮬레이션 결과 화면을 만든다. location.state를 RouteState['/simulate/result']로 캐스팅 후 ?? null 로 방어하고, state가 없으면 lastSimulation을 로드하며 그것도 없으면 EmptyState + '/simulate'로 이동 CTA를 보여준다. 결과 본문은 TossRewardAd로 게이트하고, 예측 점수·delta·6개월 추이·요인 4개를 렌더한다.",
+      "acceptance_criteria": [
+        "location.state가 undefined이고 lastSimulation도 없을 때 흰 화면 없이 EmptyState와 '시뮬레이션 하러 가기' 버튼이 렌더되고 탭 시 navigate('/simulate') 된다",
+        "결과 본문이 <TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}>로 감싸져 있고 중간 단계가 아닌 최종 결과 화면만 게이트된다",
+        "predictedScore, delta(부호 포함), monthlyProjection 6개 값, factors 4개(label·impact·direction)가 모두 화면에 렌더된다",
+        "화면 진입 시 결과가 'scoreclimb.lastSimulation.v1'에 저장되고 b_simulator 배지 평가가 1회 수행된다",
+        "'실제 평가 결과와 다를 수 있어요' 참고값 고지가 결과 하단에 항상 표시되고 AI 라벨/AI 고지 문구는 0건이다"
+      ]
+    },
+    "covers": [
+      "F7-AC-1",
+      "F7-AC-2",
+      "F7-AC-3",
+      "AC-G1"
+    ],
+    "files": [
+      "src/pages/SimulateResult.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "location.state 직접 사용 시 null 체크 존재"
+    ],
+    "depends_on": [
+      "0006",
+      "0008"
+    ],
+    "db_schema": "SimulationResult → 'scoreclimb.lastSimulation.v1', BadgeState 갱신 → 'scoreclimb.badges.v1'",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: RewardGate + ResultPanel. Whitelist: Top, SummaryHero, Amount, Paragraph, Spacing, ListRow, Chip, Border, Button, TossRewardAd, AdSlot, FloatingTabBar.\nLayout:\n<Top title={<Top.TitleParagraph>예측 결과</Top.TitleParagraph>} />\n<TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}>\n  <SummaryHero label=\"6개월 뒤 예상 점수\" value={<Amount value={result.predictedScore} unit=\"점\" typography=\"t1\" />} caption={`지금보다 ${result.delta >= 0 ? '+' : ''}${result.delta}점이에요`} />\n  <Spacing size={24} />\n  <Paragraph.Text typography=\"t4\">월별 예상 추이</Paragraph.Text>\n  <Spacing size={12} />\n  {result.monthlyProjection.map((s,i) => <ListRow key={i} contents={<ListRow.Texts type=\"2RowTypeA\" top={`${i+1}개월 뒤`} bottom={`${s}점`} />} />)}\n  <Spacing size={24} />\n  <Paragraph.Text typography=\"t4\">영향을 준 요인</Paragraph.Text>\n  <Spacing size={12} />\n  {result.factors.map(f => <ListRow key={f.label} contents={<ListRow.Texts type=\"2RowTypeA\" top={f.label} bottom={`${f.impact >= 0 ? '+' : ''}${f.impact}점`} />} right={<Chip label={f.direction === 'up' ? '상승' : f.direction === 'down' ? '하락' : '유지'} variant=\"outlined\" />} />)}\n</TossRewardAd>\n<Spacing size={16} />\n<Paragraph.Text typography=\"st13\" color=\"tertiary\">입력값 기반 참고값이에요. 실제 평가 결과와 다를 수 있어요</Paragraph.Text>\n<Spacing size={16} /><Border /><Spacing size={16} />\n<AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID} />\n<Spacing size={96} />\n<FloatingTabBar active=\"simulate\" />\nStates — Loading: Skeleton. Empty: Asset.ContentIcon + '아직 시뮬레이션 결과가 없어요' + Button size=\"large\" '시뮬레이션 하러 가기'. Error: 재시도 Button.\nAI 고지/AI 라벨 사용 금지(결정론적 계산)."
+  },
+  {
+    "id": "0016",
+    "title": "S7 또래 비교 리포트 /report",
+    "epic": "Epic 3. UI 페이지",
+    "task": {
+      "description": "src/pages/Report.tsx에 또래 평균 비교 리포트를 만든다. 프로필의 birthYear로 밴드를 구하고 avgScore/avgCardUsageRatio와 내 값을 나란히 비교해 차이와 판정(above/similar/below)을 문장으로 보여준다. 최근 스코어 추이 요약과 배너 광고를 배치하고, 또래 값이 앱 자체 산정 참고값임을 상시 고지한다.",
+      "acceptance_criteria": [
+        "프로필 birthYear로 계산된 band가 화면에 표시되고 해당 밴드의 avgScore/avgCardUsageRatio가 PEER_BENCHMARKS 값과 일치한다",
+        "내 점수와 또래 평균 차이가 부호 포함(+20점 / -35점)으로 표시되고 scoreVerdict에 따라 문구가 above/similar/below 3종으로 분기된다",
+        "'또래 평균은 앱 자체 산정 참고값이에요. 공식 신용평가사 통계가 아니에요' 고지가 화면에 상시 표시된다",
+        "프로필이 없을 때 EmptyState + '현황 입력하러 가기' 버튼이 렌더되고 탭 시 navigate('/onboarding') 된다",
+        "AdSlot이 콘텐츠 섹션 사이 또는 하단에 배치되고 본문을 가리지 않는다"
+      ]
+    },
+    "covers": [
+      "F8-AC-1",
+      "F8-AC-5",
+      "AC-G2"
+    ],
+    "files": [
+      "src/pages/Report.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "HEX 0건, 외부 링크 0건"
+    ],
+    "depends_on": [
+      "0007",
+      "0008"
+    ],
+    "db_schema": "CreditProfile → 'scoreclimb.profile.v1', ScoreSnapshot[] → 'scoreclimb.scoreHistory.v1' (읽기 전용), PeerBenchmark는 코드 상수",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: PageShell + ComparePanel. Whitelist: Top, SummaryHero, Amount, Paragraph, Spacing, ListRow, Chip, Border, Button, Asset.ContentIcon, AdSlot, FloatingTabBar.\nLayout:\n<Top title={<Top.TitleParagraph>또래 비교 리포트</Top.TitleParagraph>} />\n<SummaryHero label={`${band} 또래와 비교하면`} value={<Amount value={Math.abs(scoreDiff)} unit=\"점\" typography=\"t1\" />} caption={verdictText} />\n<Spacing size={24} />\n<Paragraph.Text typography=\"t4\">항목별 비교</Paragraph.Text>\n<Spacing size={12} />\n<ListRow contents={<ListRow.Texts type=\"2RowTypeA\" top=\"신용점수\" bottom={`내 ${profile.score}점 · 또래 평균 ${bm.avgScore}점`} />} right={<Chip label={scoreVerdict === 'above' ? '높아요' : scoreVerdict === 'below' ? '낮아요' : '비슷해요'} variant=\"outlined\" />} />\n<ListRow contents={<ListRow.Texts type=\"2RowTypeA\" top=\"카드 사용률\" bottom={`내 ${profile.cardUsageRatio}% · 또래 평균 ${bm.avgCardUsageRatio}%`} />} />\n<Spacing size={16} />\n<Paragraph.Text typography=\"st13\" color=\"tertiary\">또래 평균은 앱 자체 산정 참고값이에요. 공식 신용평가사 통계가 아니에요</Paragraph.Text>\n<Spacing size={24} /><Border /><Spacing size={16} />\n<AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID} />\n<Spacing size={96} />\n<FloatingTabBar active=\"report\" />\nStates — Loading: Skeleton. Empty: Asset.ContentIcon + '신용 현황을 먼저 입력해 주세요' + Button size=\"large\" '현황 입력하러 가기' → navigate('/onboarding'). Error: 재시도 Button.\n색상은 var(--tds-color-*)만, 이모지 금지."
+  },
+  {
+    "id": "0017",
+    "title": "라우팅 트리 + 부트 게이트 + FloatingTabBar 배선",
+    "epic": "4",
+    "task": {
+      "description": "src/App.tsx에서 BrowserRouter 라우팅 트리를 구성한다. /onboarding, /, /missions, /badges, /simulate, /simulate/result, /report 7개 Route를 정의하고, flags.onboardingDone===false 이면 온보딩으로 리다이렉트하는 부트 게이트를 넣는다. 알 수 없는 경로는 '/'로 Navigate replace 처리하고, FloatingTabBar 4탭(홈/미션/시뮬레이션/리포트)을 배선한다. main.tsx는 수정하지 않는다.",
+      "acceptance_criteria": [
+        "7개 경로가 모두 Route로 등록되고 각 경로 진입 시 해당 페이지 컴포넌트가 흰 화면 없이 렌더된다",
+        "flags.onboardingDone===false 상태에서 '/'로 진입하면 /onboarding으로 replace 리다이렉트되고, true면 리다이렉트가 발생하지 않는다",
+        "정의되지 않은 경로(예: /foo)로 진입하면 '/'로 Navigate replace 되고 404 흰 화면이 없다",
+        "FloatingTabBar 4탭 탭 전환이 navigate()로만 동작하고 활성 탭이 현재 경로와 일치하며 tickWeak 햅틱이 발생한다",
+        "src/main.tsx가 변경되지 않았고(@AI:ANCHOR 유지) vite build가 통과한다"
+      ]
+    },
+    "covers": [
+      "AC-G2",
+      "AC-G4",
+      "라우팅 트리"
+    ],
+    "files": [
+      "src/App.tsx"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "온보딩→홈→미션→시뮬레이션→결과→리포트 전체 순회 시 console.error 0회"
+    ],
+    "depends_on": [
+      "0010",
+      "0011",
+      "0012",
+      "0013",
+      "0014",
+      "0015",
+      "0016"
+    ],
+    "db_schema": "AppFlags{onboardingDone} → 'scoreclimb.flags.v1' (부트 게이트 판정용 읽기)",
+    "api_contract": "",
+    "dependencies": [
+      "react-router-dom"
+    ],
+    "ui_requirements": "라우팅 셸. FloatingTabBar(템플릿 제공) 4탭: 홈(/), 미션(/missions), 시뮬레이션(/simulate), 리포트(/report). 활성탭은 컬러 틴트만, 커스텀 padding 금지. 탭 전환 시 generateHapticFeedback({type:'tickWeak'}). 부트 로딩 중에는 TDS Skeleton 또는 빈 셸을 렌더해 흰 화면을 만들지 않는다. 색상은 var(--tds-color-*)만."
+  },
+  {
+    "id": "0018",
+    "title": "검수 컴플라이언스 스윕 + 빌드 타깃 + 광고 래퍼 점검",
+    "epic": "Epic 4. 통합",
+    "task": {
+      "description": "vite.config.ts의 build.target을 ['es2019','safari13']로 고정하고, src/lib/compliance.ts에 금지 패턴 점검 결과를 문서화한 상수/유틸(예: 환경변수 누락 시 광고 컴포넌트를 안전하게 숨기는 hasAdConfig())을 추가한다. 전 소스에서 HEX 색상·외부 링크·설치 유도 문구·외부 분석 SDK·grantPromotionReward 사용을 제거한다. App.tsx와 main.tsx는 수정하지 않는다.",
+      "acceptance_criteria": [
+        "vite.config.ts의 build.target === ['es2019','safari13'] 이고 번들에 Array.prototype.at/Object.groupBy/structuredClone/findLast가 0건이다",
+        "src/**/*.{ts,tsx,css} 전체에서 #[0-9a-fA-F]{3,8} 매칭이 0건이다",
+        "소스 전체에서 window.open, target=\"_blank\", 외부 http(s) 이동, '앱을 설치'/'다운로드'/'설치하기'/'스토어에서' 문구, grantPromotionReward 호출이 각각 0건이다",
+        "package.json과 index.html에 google-analytics/gtag/amplitude/mixpanel/sentry/hotjar 문자열이 0건이다",
+        "hasAdConfig()가 VITE_TOSS_AD_GROUP_ID 또는 VITE_TOSS_AD_SLOT_ID 미설정 시 false를 반환하고, 미설정 환경에서도 앱이 크래시 없이 렌더된다"
+      ]
+    },
+    "covers": [
+      "AC-G2",
+      "AC-G3",
+      "AC-G5",
+      "AC-G6",
+      "AC-G7",
+      "AC-G9"
+    ],
+    "files": [
+      "vite.config.ts",
+      "src/lib/compliance.ts"
+    ],
+    "definition_of_done": [
+      "tsc --noEmit 통과",
+      "vite build 통과",
+      "전체 플로우 1회 순회 시 console.error 0회, cross-origin 요청 0건"
+    ],
+    "depends_on": [],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "광고 컴포넌트는 템플릿 제공 <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID} />, <TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}>만 사용한다(재구현 금지). 환경변수 미설정 시 hasAdConfig()가 false를 반환해 광고 영역을 렌더하지 않고 빈 공간도 남기지 않는다. AI 라벨/AI 고지 다이얼로그는 사용하지 않는다(본 앱은 생성형 AI 미사용). 색상은 var(--tds-color-*)만."
+  }
+]
