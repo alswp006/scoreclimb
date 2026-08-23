@@ -149,21 +149,24 @@ export interface BadgeState {
 
 /** Simulation input parameters */
 export interface SimulationInput {
-  monthlySaving: number;
-  creditUtilization: number;
-  paymentHistory: "onTime" | "late" | "mixed";
-  savingsDuration: number;
+  /** Current credit score (350~1000) */
+  currentScore: number;
+  /** Card usage ratio percentage (0~100) */
+  cardUsageRatio: number;
+  /** Consecutive months with on-time payments (0~24) */
+  onTimePaymentMonths: number;
+  /** Number of newly opened loans (0~5) */
+  newLoanCount: number;
 }
 
 /** Direction of factor impact */
-export type FactorDirection = "positive" | "negative" | "neutral";
+export type FactorDirection = "up" | "down" | "flat";
 
 /** Individual factor in simulation */
 export interface SimulationFactor {
-  name: string;
-  description: string;
-  impact: FactorDirection;
-  contribution: number;
+  label: string;
+  impact: number;
+  direction: FactorDirection;
 }
 
 /** Simulation result with projection */
@@ -171,7 +174,8 @@ export interface SimulationResult {
   input: SimulationInput;
   predictedScore: number;
   delta: number;
-  monthlyProjection: Array<{ month: number; score: number }>;
+  /** 6-month score projection, monotonic toward predictedScore, each clamped 350~1000 */
+  monthlyProjection: number[];
   factors: SimulationFactor[];
   createdAt: string;
 }
@@ -195,13 +199,7 @@ export type SaveResult =
   | { ok: true; error?: undefined }
   | { ok: false; error: string };
 
-/** Route state for React Router navigation */
-export type RouteState = {
-  "/onboarding": { step?: number };
-  "/": undefined;
-  "/missions": undefined;
-  "/badges": undefined;
-  "/simulate": undefined
+/** Route state f
 // ...truncated
 ```
 
@@ -278,88 +276,4 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0003: 스토리지 코어 + 날짜 유틸 (get/set/prune/quota) (files: src/lib/storage.ts, src/lib/date.ts)
 - 0004: 엔티티 CRUD + 범위 검증 타입가드 (files: src/lib/repository.ts)
 - 0005: 스트릭 & 배지 도메인 순수 함수 (files: src/lib/streak.ts, src/lib/badges.ts)
-
-## Available exports from existing files
-// src/App.tsx
-export default function App() {
-
-// src/components/AdSlot.tsx
-export function AdSlot({ adGroupId, className, variant, theme }: AdSlotProps) {
-
-// src/components/Amount.tsx
-export function Amount({
-
-// src/components/BottomCTA.tsx
-export function SubmitFooter({
-export function ButtonStack({
-
-// src/components/Card.tsx
-export function Card({
-
-// src/components/CountUp.tsx
-export function CountUp({
-
-// src/components/FloatingTabBar.tsx
-export type TabItem = {
-export function FloatingTabBar({ items }: { items: TabItem[] }) {
-
-// src/components/MiniBar.tsx
-export function MiniBar({
-
-// src/components/PageShell.tsx
-export function PageShell({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-
-// src/components/ScreenScaffold.tsx
-export function ScreenScaffold({
-
-// src/components/Sparkline.tsx
-export function Sparkline({
-
-// src/components/StateView.tsx
-export function EmptyState({
-export function LoadingState({
-
-// src/components/SummaryHero.tsx
-export function SummaryHero({
-
-// src/components/TossPurchase.tsx
-export interface TossPurchaseResult {
-export function TossPurchase({
-
-// src/components/TossRewardAd.tsx
-export function TossRewardAd({
-
-// src/components/common.tsx
-export function SectionHeader({ title }: { title: ReactNode }) {
-export function EmptyState({
-export function DisclaimerText({ text }: { text: ReactNode }) {
-export function LoadingBlock({
-
-// src/lib/badges.ts
-export interface BadgeEvalContext {
-export function evaluateBadges(
-
-// src/lib/compliance.ts
-export function hasAdConfig(): boolean {
-
-// src/lib/constants.ts
-export const STORAGE_KEYS = {
-export const MISSION_DEFINITIONS: MissionDefinition[] = [
-export type BadgeDefinitionWithCondition = BadgeDefinition & {
-export const BADGE_DEFINITIONS: BadgeDefinitionWithCondition[] = [
-export type PeerBenchmarkBand = {
-export const PEER_BENCHMARKS: PeerBenchmarkBand[] = [
-export const DEFAULT_FLAGS: AppFlags = {
-export const DEFAULT_STREAK: StreakState = {
-export const DEF
-
-## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
-
-Available topics: deploy(1), general(7), testing(2), ui(4)
-
-Key lessons (verify against actual code before applying):
-- [general] 영속 저장소에서 읽은 값은 항상 스키마 기본값으로 정규화해 배열·객체 타입을 보장한 뒤 반환하고, 화면은 빈/손상/부분 데이터에서도 렌더되도록 방어하라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 정책·기능 제거형 리팩터링은 화면과 도메인 로직 레이어에서만 수행하고, package.json의 플랫폼 필수 의존성(디자인 시스템·플랫폼 SDK·프레임워크 코어)은 어떤 경우에도 삭제하지 말 것 — 필수 패키지 화이트리스트를 빌드 전 가드로 검증하라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 공용 기반 모듈(상수·저장소·계산 유틸)이 실제로 머지되기 전에는 이를 import하는 화면·훅 패킷을 머지하지 말고, 모든 머지 게이트에 타입체크와 프로덕션 빌드 통과(미해결 import 0건)를 필수로 걸어라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 라우팅·Provider·전역 레이아웃 같은 단일 통합 배선 책임은 하나의 워크패킷에만 할당하고, 다른 패킷은 그 위에 페이지 내부 요소만 얹도록 경계를 명확히 나눠라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 여러 페이지 패킷을 병렬로 내보내기 전에, 라우팅·Provider·공유 UI 스캐폴드 계약을 하나의 앱셸 패킷에서 먼저 확정하고 빌드로 스모크 검증하라. (60% · 타 앱 1회 — 맹신 금지)
+- 0006: 시뮬레이션 계산 엔진 simulate() (files: src/lib/simulate.ts)
