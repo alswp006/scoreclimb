@@ -277,6 +277,7 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0004: 엔티티 CRUD + 범위 검증 타입가드 (files: src/lib/repository.ts)
 - 0005: 스트릭 & 배지 도메인 순수 함수 (files: src/lib/streak.ts, src/lib/badges.ts)
 - 0006: 시뮬레이션 계산 엔진 simulate() (files: src/lib/simulate.ts)
+- 0007: 또래 벤치마크 비교 + 추천 미션 로직 (files: src/lib/benchmark.ts)
 
 ## Available exports from existing files
 // src/App.tsx
@@ -338,19 +339,21 @@ export function LoadingBlock({
 export interface BadgeEvalContext {
 export function evaluateBadges(
 
+// src/lib/benchmark.ts
+export type PeerBand = "20-24" | "25-29" | "30-34" | "35-39" | "40+";
+export interface AgeBandBenchmark {
+export function getBand(birthYear: number, todayKey: string): PeerBand {
+export function getBenchmark(band: PeerBand): AgeBandBenchmark {
+export interface PeerComparison {
+export function compareToPeer(
+export function recommendMissions(
+
 // src/lib/compliance.ts
 export function hasAdConfig(): boolean {
 
 // src/lib/constants.ts
 export const STORAGE_KEYS = {
-export const MISSION_DEFINITIONS: MissionDefinition[] = [
-export type BadgeDefinitionWithCondition = BadgeDefinition & {
-export const BADGE_DEFINITIONS: BadgeDefinitionWithCondition[] = [
-export type PeerBenchmarkBand = {
-export const PEER_BENCHMARKS: PeerBenchmarkBand[] = [
-export const DEFAULT_FLAGS: AppFlags = {
-export const DEFAULT_STREAK: StreakState = {
-export const DEF
+export co
 
 ## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
 

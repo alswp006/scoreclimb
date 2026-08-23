@@ -12,6 +12,7 @@ import type {
 import { renderHook, act } from "@testing-library/react";
 import { MISSION_DEFINITIONS, DEFAULT_STREAK, DEFAULT_BADGES, STORAGE_KEYS } from "@/lib/constants";
 import * as repo from "@/lib/repository";
+import { useAppData } from "@/hooks/useAppData";
 
 // Mock all repository functions
 vi.mock("@/lib/repository", () => ({
@@ -534,6 +535,7 @@ describe("App State Hook useAppData (Packet 0008)", () => {
       // When: hook mounts
       // Then: missionLogs = {}, no crash, default state stable
       vi.mocked(repo.loadMissionLogs).mockReturnValue({});
+      renderHook(() => useAppData());
       expect(vi.mocked(repo.loadMissionLogs).mock.results[0].value).toEqual({});
     });
 
@@ -551,6 +553,7 @@ describe("App State Hook useAppData (Packet 0008)", () => {
       // When: hook mounts
       // Then: profile = null, other fields populated with defaults
       vi.mocked(repo.loadProfile).mockReturnValue(null);
+      renderHook(() => useAppData());
       expect(vi.mocked(repo.loadProfile).mock.results[0].value).toBeNull();
     });
 
@@ -558,6 +561,7 @@ describe("App State Hook useAppData (Packet 0008)", () => {
       // When: hook mounts and loadStreak returns default
       // Then: streak = DEFAULT_STREAK { current: 0, longest: 0, ... }
       vi.mocked(repo.loadStreak).mockReturnValue(DEFAULT_STREAK);
+      renderHook(() => useAppData());
       expect(vi.mocked(repo.loadStreak).mock.results[0].value.current).toBe(0);
     });
 
@@ -574,6 +578,7 @@ describe("App State Hook useAppData (Packet 0008)", () => {
       // Implementation: wrap each load in try/catch
       vi.mocked(repo.loadBadges).mockReturnValue(DEFAULT_BADGES);
       vi.mocked(repo.loadStreak).mockReturnValue(DEFAULT_STREAK);
+      renderHook(() => useAppData());
       expect(vi.mocked(repo.loadBadges).mock.results[0].value).toEqual(DEFAULT_BADGES);
     });
 
