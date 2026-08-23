@@ -180,7 +180,7 @@ import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 
 ## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
 
-Available topics: deploy(1), general(7), testing(2), ui(4)
+Available topics: general(7)
 
 Key lessons (verify against actual code before applying):
 - [general] 영속 저장소에서 읽은 값은 항상 스키마 기본값으로 정규화해 배열·객체 타입을 보장한 뒤 반환하고, 화면은 빈/손상/부분 데이터에서도 렌더되도록 방어하라. (60% · 타 앱 1회 — 맹신 금지)

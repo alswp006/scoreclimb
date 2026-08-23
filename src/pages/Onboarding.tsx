@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Top, Paragraph, Spacing, TextField, AlertDialog, Toast } from '@toss/tds-mobile';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { ScreenScaffold } from '../components/ScreenScaffold';
 import { SubmitFooter } from '../components/BottomCTA';
 import { useAppData } from '../hooks/useAppData';
@@ -24,7 +24,7 @@ function isInRange(n: number, min: number, max: number): boolean {
  */
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { flags, actions } = useAppData();
+  const { flags, loading, actions } = useAppData();
 
   const [score, setScore] = useState('');
   const [birthYear, setBirthYear] = useState('');
@@ -78,6 +78,11 @@ export default function Onboarding() {
     await actions.completeOnboarding();
     navigate('/', { replace: true });
   };
+
+  // AC-2[P0]: 온보딩을 이미 마친 사용자가 /onboarding에 직접 진입하면 홈으로 되돌린다
+  if (!loading && flags.onboardingDone) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <ScreenScaffold

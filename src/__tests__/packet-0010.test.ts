@@ -133,6 +133,14 @@ describe("S1 온보딩 화면 /onboarding", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  it("F2-AC-2[P0]: onboardingDone === true인 상태로 /onboarding에 진입하면 폼 대신 홈으로 리다이렉트된다", () => {
+    mockFlags.onboardingDone = true;
+
+    renderWithRouter(React.createElement(Onboarding));
+
+    expect(screen.queryByTestId("score-input")).not.toBeInTheDocument();
+  });
+
   it("AC-5[P0]: CTA 1회 클릭 후 저장 완료 전 재클릭이 무시되어 saveProfileAndSnapshot이 1회만 호출된다", async () => {
     let resolveSave!: (r: SaveResult) => void;
     mockActions.saveProfileAndSnapshot.mockImplementation(

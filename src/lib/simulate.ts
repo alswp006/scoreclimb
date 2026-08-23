@@ -7,7 +7,6 @@ import type {
 
 const SCORE_MIN = 350;
 const SCORE_MAX = 1000;
-const SCORE_MID = (SCORE_MIN + SCORE_MAX) / 2;
 const PROJECTION_MONTHS = 6;
 
 function clampScore(score: number): number {
@@ -33,7 +32,7 @@ export interface SimulationStreakContext {
 }
 
 /**
- * 신용점수 시뮬레이션 — 결정론적 순수 함수.
+ * 신용점수 시뮬레이션 — 결정론적 순수 함수 (spec 고정 산식).
  * 동일 입력은 항상 동일한 predictedScore/factors/monthlyProjection을 낸다(createdAt 제외).
  */
 export function simulate(
@@ -43,29 +42,27 @@ export function simulate(
   const { currentScore, cardUsageRatio, onTimePaymentMonths, newLoanCount } = input;
   const streakCurrent = streak?.current ?? 0;
 
-  const cardUsageImpact = Math.round((30 - cardUsageRatio) * 0.6);
-  const paymentHistoryImpact = Math.round(onTimePaymentMonths * 1.2);
-  const newLoanImpact = newLoanCount * -8;
-  const currentScoreImpact = Math.round((SCORE_MID - currentScore) * 0.05);
+  const usageDelta =
+    cardUsageRatio <= 30 ? 18 : cardUsageRatio <= 50 ? 6 : cardUsageRatio <= 70 ? -10 : -25;
+  const paymentDelta = Math.min(onTimePaymentMonths, 12) * 3;
+  const loanDelta = newLoanCount * -12;
   const streakBonus = Math.round(Math.min(Math.max(streakCurrent, 0), 30) * 0.5);
 
   const factors: SimulationFactor[] = [
-    makeFactor("카드 사용률", cardUsageImpact),
-    makeFactor("정시 납부 이력", paymentHistoryImpact),
-    makeFactor("신규 대출", newLoanImpact),
-    makeFactor("현재 신용점수", currentScoreImpact),
+    makeFactor("카드 사용률", usageDelta),
+    makeFactor("연체 없는 기간", paymentDelta),
+    makeFactor("신규 대출", loanDelta),
+    makeFactor("미션 스트릭", streakBonus),
   ];
 
-  const totalImpact =
-    cardUsageImpact + paymentHistoryImpact + newLoanImpact + currentScoreImpact + streakBonus;
-
-  const predictedScore = clampScore(currentScore + totalImpact);
+  const predictedScore = clampScore(
+    currentScore + usageDelta + paymentDelta + loanDelta + streakBonus
+  );
   const delta = predictedScore - currentScore;
 
-  const monthlyProjection: number[] = Array.from({ length: PROJECTION_MONTHS }, (_, i) => {
-    const ratio = (i + 1) / PROJECTION_MONTHS;
-    return clampScore(currentScore + (predictedScore - currentScore) * ratio);
-  });
+  const monthlyProjection: number[] = Array.from({ length: PROJECTION_MONTHS }, (_, i) =>
+    clampScore(currentScore + Math.round((delta * (i + 1)) / PROJECTION_MONTHS))
+  );
 
   return {
     input,
