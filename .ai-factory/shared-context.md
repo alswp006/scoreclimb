@@ -276,3 +276,80 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0017: 라우팅 트리 + 부트 게이트 + FloatingTabBar 배선 (files: src/App.tsx)
 - 0001: 데이터 모델 타입 + RouteState 정의 (files: src/lib/types.ts)
 - 0002: 고정 상수 테이블 + 스토리지 키 — TDD RED phase (files: src/__tests__/packet-0002.test.ts — 37 tests, all failing, awaiting implementation)
+
+## Available exports from existing files
+// src/App.tsx
+export default function App() {
+
+// src/components/AdSlot.tsx
+export function AdSlot({ adGroupId, className, variant, theme }: AdSlotProps) {
+
+// src/components/Amount.tsx
+export function Amount({
+
+// src/components/BottomCTA.tsx
+export function SubmitFooter({
+export function ButtonStack({
+
+// src/components/Card.tsx
+export function Card({
+
+// src/components/CountUp.tsx
+export function CountUp({
+
+// src/components/FloatingTabBar.tsx
+export type TabItem = {
+export function FloatingTabBar({ items }: { items: TabItem[] }) {
+
+// src/components/MiniBar.tsx
+export function MiniBar({
+
+// src/components/PageShell.tsx
+export function PageShell({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+
+// src/components/ScreenScaffold.tsx
+export function ScreenScaffold({
+
+// src/components/Sparkline.tsx
+export function Sparkline({
+
+// src/components/StateView.tsx
+export function EmptyState({
+export function LoadingState({
+
+// src/components/SummaryHero.tsx
+export function SummaryHero({
+
+// src/components/TossPurchase.tsx
+export interface TossPurchaseResult {
+export function TossPurchase({
+
+// src/components/TossRewardAd.tsx
+export function TossRewardAd({
+
+// src/components/common.tsx
+export function SectionHeader({ title }: { title: ReactNode }) {
+export function EmptyState({
+export function DisclaimerText({ text }: { text: ReactNode }) {
+export function LoadingBlock({
+
+// src/lib/compliance.ts
+export function hasAdConfig(): boolean {
+
+// src/lib/contract.ts
+export type RouteState = 'onboarding' | 'home' | 'missions' | 'badges' | 'simulate' | 'simulateResult' | 'report';
+export type User = { id: string; name: string; startDate: string; createdAt: string };
+export type Mission = { id: string; category: string; status: 'pending' | 'completed'; completedAt?: string; amountKrw: number };
+export type Activity = { date: string; type: 'mission' | 'manual'; amountKrw: number };
+export type Badge = { id: string; name: string; unlockedAt: string; threshold: 
+
+## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
+
+Available topics: deploy(1), general(7), testing(2), ui(4)
+
+Key lessons (verify against actual code before applying):
+- [general] 영속 저장소에서 읽은 값은 항상 스키마 기본값으로 정규화해 배열·객체 타입을 보장한 뒤 반환하고, 화면은 빈/손상/부분 데이터에서도 렌더되도록 방어하라. (60% · 타 앱 1회 — 맹신 금지)
+- [general] 정책·기능 제거형 리팩터링은 화면과 도메인 로직 레이어에서만 수행하고, package.json의 플랫폼 필수 의존성(디자인 시스템·플랫폼 SDK·프레임워크 코어)은 어떤 경우에도 삭제하지 말 것 — 필수 패키지 화이트리스트를 빌드 전 가드로 검증하라. (60% · 타 앱 1회 — 맹신 금지)
+- [general] 공용 기반 모듈(상수·저장소·계산 유틸)이 실제로 머지되기 전에는 이를 import하는 화면·훅 패킷을 머지하지 말고, 모든 머지 게이트에 타입체크와 프로덕션 빌드 통과(미해결 import 0건)를 필수로 걸어라. (60% · 타 앱 1회 — 맹신 금지)
+- [general] 라우팅·Provider·전역 레이아웃 같은 단일 통합 배선 책임은 하나의 워크패킷에만 할당하고, 다른 패킷은 그 위에 페이지 내부 요소만 얹도록 경계를 명확히 나눠라. (60% · 타 앱 1회 — 맹신 금지)
+- [general] 여러 페이지 패킷을 병렬로 내보내기 전에, 라우팅·Provider·공유 UI 스캐폴드 계약을 하나의 앱셸 패킷에서 먼저 확정하고 빌드로 스모크 검증하라. (60% · 타 앱 1회 — 맹신 금지)

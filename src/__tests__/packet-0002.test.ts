@@ -7,13 +7,13 @@ describe("Packet 0002: 고정 상수 테이블 + 스토리지 키", () => {
   describe("AC-1: STORAGE_KEYS must have exactly 7 entries with correct naming", () => {
     it("should have exactly 7 storage keys", () => {
       const { STORAGE_KEYS } = require("@/lib/constants");
-      const keys = Object.values(STORAGE_KEYS);
+      const keys = Object.values<string>(STORAGE_KEYS);
       expect(keys).toHaveLength(7);
     });
 
     it("all storage keys must start with 'scoreclimb.' and end with '.v1'", () => {
       const { STORAGE_KEYS } = require("@/lib/constants");
-      const keys = Object.values(STORAGE_KEYS);
+      const keys = Object.values<string>(STORAGE_KEYS);
 
       keys.forEach((key: string) => {
         expect(key).toMatch(/^scoreclimb\..+\.v1$/);
