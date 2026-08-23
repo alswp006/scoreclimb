@@ -381,15 +381,15 @@ describe("Peer Benchmark & Mission Recommendation (Packet 0007)", () => {
 
       const todayLog: DailyMissionLog = {
         date: "2026-08-24",
-        completedMissionIds: ["mission-1", "mission-2"],
+        completedMissionIds: ["m_card_usage", "m_no_late"],
         totalPoints: 0,
       };
 
       const missions = recommendMissions(profile, todayLog);
 
       const recommendedIds = missions.map((m: MissionDefinition) => m.id);
-      expect(recommendedIds).not.toContain("mission-1");
-      expect(recommendedIds).not.toContain("mission-2");
+      expect(recommendedIds).not.toContain("m_card_usage");
+      expect(recommendedIds).not.toContain("m_no_late");
     });
 
     it("should return MissionDefinition[] with id, title, description, category, points, impact", async () => {
@@ -508,12 +508,12 @@ describe("Peer Benchmark & Mission Recommendation (Packet 0007)", () => {
       const todayLog: DailyMissionLog = {
         date: "2026-08-24",
         completedMissionIds: [
-          "mission-1",
-          "mission-2",
-          "mission-3",
-          "mission-4",
-          "mission-5",
-          "mission-6",
+          "m_card_usage",
+          "m_no_late",
+          "m_auto_pay",
+          "m_no_cash_advance",
+          "m_score_check",
+          "m_debt_plan",
         ],
         totalPoints: 100,
       };
@@ -537,12 +537,12 @@ describe("Peer Benchmark & Mission Recommendation (Packet 0007)", () => {
       const todayLog: DailyMissionLog = {
         date: "2026-08-24",
         completedMissionIds: [
-          "mission-1",
-          "mission-2",
-          "mission-3",
-          "mission-4",
-          "mission-5",
-          "mission-6",
+          "m_card_usage",
+          "m_no_late",
+          "m_auto_pay",
+          "m_no_cash_advance",
+          "m_score_check",
+          "m_debt_plan",
         ],
         totalPoints: 100,
       };
@@ -566,11 +566,11 @@ describe("Peer Benchmark & Mission Recommendation (Packet 0007)", () => {
       const todayLog: DailyMissionLog = {
         date: "2026-08-24",
         completedMissionIds: [
-          "mission-1",
-          "mission-2",
-          "mission-3",
-          "mission-4",
-          "mission-5",
+          "m_card_usage",
+          "m_no_late",
+          "m_auto_pay",
+          "m_no_cash_advance",
+          "m_score_check",
         ],
         totalPoints: 90,
       };
