@@ -73,21 +73,24 @@ export interface BadgeState {
 
 /** Simulation input parameters */
 export interface SimulationInput {
-  monthlySaving: number;
-  creditUtilization: number;
-  paymentHistory: "onTime" | "late" | "mixed";
-  savingsDuration: number;
+  /** Current credit score (350~1000) */
+  currentScore: number;
+  /** Card usage ratio percentage (0~100) */
+  cardUsageRatio: number;
+  /** Consecutive months with on-time payments (0~24) */
+  onTimePaymentMonths: number;
+  /** Number of newly opened loans (0~5) */
+  newLoanCount: number;
 }
 
 /** Direction of factor impact */
-export type FactorDirection = "positive" | "negative" | "neutral";
+export type FactorDirection = "up" | "down" | "flat";
 
 /** Individual factor in simulation */
 export interface SimulationFactor {
-  name: string;
-  description: string;
-  impact: FactorDirection;
-  contribution: number;
+  label: string;
+  impact: number;
+  direction: FactorDirection;
 }
 
 /** Simulation result with projection */
@@ -95,7 +98,8 @@ export interface SimulationResult {
   input: SimulationInput;
   predictedScore: number;
   delta: number;
-  monthlyProjection: Array<{ month: number; score: number }>;
+  /** 6-month score projection, monotonic toward predictedScore, each clamped 350~1000 */
+  monthlyProjection: number[];
   factors: SimulationFactor[];
   createdAt: string;
 }
