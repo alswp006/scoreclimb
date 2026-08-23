@@ -296,18 +296,29 @@ export function mockTossRewardAd() {
 }
 
 // ── react-router-dom ──
-// Preserve actual router + override useNavigate for assertion.
+// Preserve actual router + override useNavigate/useLocation for assertion.
+//
+// ⚠️ 이 스텁은 '옵트인'이어야 한다. vitest는 vi.mock을 함수 안에 써도 파일 최상단으로
+// 호이스팅하므로, mockTds()만 쓰려고 이 파일을 import한 테스트에도 라우터 목이 함께
+// 등록된다. 예전 구현은 그 상태에서 무조건 스텁을 돌려줬고, 그 결과 실제 라우팅을
+// 검증하려던 테스트에서 useNavigate()가 아무 데도 이동하지 않고 useLocation()이 항상
+// "/"를 반환해 탭 활성표시·리다이렉트가 조용히 죽었다. 그래서 플래그로 게이트한다 —
+// mockRouter()/mockAll()을 호출한 테스트에서만 스텁이 켜지고, 나머지는 진짜 라우터가 돈다.
+let routerStubEnabled = false;
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>(
+    "react-router-dom",
+  );
+  return {
+    ...actual,
+    useNavigate: () => (routerStubEnabled ? mockNavigate : actual.useNavigate()),
+    useLocation: () => (routerStubEnabled ? mockLocation : actual.useLocation()),
+  };
+});
+
 export function mockRouter() {
-  vi.mock("react-router-dom", async () => {
-    const actual = await vi.importActual<typeof import("react-router-dom")>(
-      "react-router-dom",
-    );
-    return {
-      ...actual,
-      useNavigate: () => mockNavigate,
-      useLocation: () => mockLocation,
-    };
-  });
+  routerStubEnabled = true;
 }
 
 // ── Convenience: mock everything ──

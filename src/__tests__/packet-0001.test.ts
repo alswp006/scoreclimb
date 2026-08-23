@@ -66,10 +66,12 @@ describe("Packet 0001: 데이터 모델 타입 + RouteState 정의", () => {
     expect(fileContent).toContain("ok");
     expect(fileContent).toContain("error");
     // Check for union type syntax ({ ok: true } | { ok: false; error: string })
-    expect(fileContent).toMatch(/ok\s*:\s*true/) ||
-      expect(fileContent).toMatch(/ok\s*:\s*true/);
-    expect(fileContent).toMatch(/ok\s*:\s*false/) ||
-      expect(fileContent).toMatch(/error\s*:\s*string/);
+    // (expect(...)는 void를 반환해 `||`로 이을 수 없다 — 원래 의도인 "둘 중 하나"는
+    //  정규식 테스트 결과를 OR로 묶어 표현한다. 검증 강도는 그대로.)
+    expect(fileContent).toMatch(/ok\s*:\s*true/);
+    expect(
+      /ok\s*:\s*false/.test(fileContent) || /error\s*:\s*string/.test(fileContent),
+    ).toBe(true);
   });
 
   // AC-4: JSDoc range annotations on numeric fields

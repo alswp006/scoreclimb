@@ -11,15 +11,26 @@ import { test, expect, type Page } from "@playwright/test";
  *   2) 데이터가 필요한 화면은 seed()에서 localStorage를 채워라
  */
 const ROUTES: { path: string; name: string }[] = [
+  { path: "/onboarding", name: "onboarding" },
   { path: "/", name: "home" },
-  // { path: "/result", name: "result" },   // ← 이 앱의 라우트를 추가
-  // { path: "/settings", name: "settings" },
+  { path: "/missions", name: "missions" },
+  { path: "/badges", name: "badges" },
+  { path: "/simulate", name: "simulate" },
+  { path: "/simulate/result", name: "simulate-result" },
+  { path: "/report", name: "report" },
+  { path: "/foo-unknown", name: "unknown-route" },
 ];
 
-/** 데이터가 필요한 화면용 localStorage 시드(앱에 맞게 채워라). 앱 스크립트보다 먼저 실행된다. */
+/**
+ * 부트 게이트 시드 — `flags.onboardingDone`이 false면 모든 경로가 /onboarding으로
+ * replace 되어 다른 화면을 한 장도 못 찍는다. 온보딩을 마친 사용자 상태로 시작한다.
+ */
 async function seed(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    // window.localStorage.setItem("MY_STORAGE_KEY", JSON.stringify({ /* ... */ }));
+    window.localStorage.setItem(
+      "scoreclimb.flags.v1",
+      JSON.stringify({ onboardingDone: true, disclaimerAckedAt: null }),
+    );
   });
 }
 
@@ -64,3 +75,40 @@ for (const route of ROUTES) {
     await page.screenshot({ path: `e2e/__shots__/${route.name}.png`, fullPage: true });
   });
 }
+
+/**
+ * 전체 순회 — 신규 사용자가 부트 게이트에 걸려 온보딩부터 시작해 탭을 한 바퀴 도는 동안
+ * 흰 화면과 console.error가 없어야 한다(패킷 0017 DoD).
+ */
+test("flow: 온보딩 → 홈 → 미션 → 시뮬레이션 → 결과 → 리포트", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (m) => {
+    if (m.type() === "error" && !IGNORED_CONSOLE.some((re) => re.test(m.text()))) errors.push(m.text());
+  });
+  page.on("pageerror", (e) => errors.push(e.message));
+
+  // 시드 없음 = 온보딩 전 상태 → '/'로 들어가도 부트 게이트가 온보딩으로 돌린다
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/onboarding$/);
+
+  await page.getByRole("button", { name: "시작하기" }).click();
+  await expect(page).toHaveURL(/localhost:5173\/$/);
+
+  for (const [tab, url] of [
+    ["미션", /\/missions$/],
+    ["시뮬레이션", /\/simulate$/],
+    ["리포트", /\/report$/],
+    ["홈", /localhost:5173\/$/],
+  ] as const) {
+    await page.getByRole("tab", { name: tab }).click();
+    await expect(page).toHaveURL(url);
+    expect((await page.locator("#root").innerText()).trim().length).toBeGreaterThan(0);
+  }
+
+  // 결과 화면은 탭 밖 경로 — 직접 진입해도 나가는 길이 있어야 한다
+  await page.goto("/simulate/result");
+  await page.getByRole("button", { name: "시뮬레이션 입력하기" }).click();
+  await expect(page).toHaveURL(/\/simulate$/);
+
+  expect(errors, "전체 순회 중 콘솔 에러").toEqual([]);
+});
