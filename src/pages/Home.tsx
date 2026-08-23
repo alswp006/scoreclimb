@@ -1,71 +1,151 @@
-import { Top, Paragraph, Spacing, ListRow, Button } from '@toss/tds-mobile';
+import { useMemo, useRef } from 'react';
+import { Top, Paragraph, Spacing, ListRow, Button, Chip, Border } from '@toss/tds-mobile';
 import { useNavigate } from 'react-router-dom';
 import { ScreenScaffold } from '../components/ScreenScaffold';
 import { SummaryHero } from '../components/SummaryHero';
+import { Amount } from '../components/Amount';
 import { Card } from '../components/Card';
+import { AdSlot } from '../components/AdSlot';
+import { useAppData } from '../hooks/useAppData';
+import { recommendMissions } from '../lib/benchmark';
+import { todayKey } from '../lib/date';
+import type { DailyMissionLog } from '../lib/types';
+
+const TOTAL_MISSIONS = 6;
+const TOTAL_POINTS = 12;
 
 /**
- * Golden Home page — 대시보드/탭-루트 골든 레퍼런스.
+ * S2 홈 대시보드 — 오늘의 신용점수 현황과 미션 진행을 한눈에 보여주는 탭-루트 화면.
  *
- * 다른 페이지를 쓸 때 이 패턴을 모방하라:
- * - ScreenScaffold로 감싼다(raw fragment 골격 금지) — safe-area + 100dvh 자동 처리.
- * - 화면 최상단에 SummaryHero로 시각 앵커를 만든다('휑함'의 가장 큰 원인은 앵커 부재).
- *   데이터가 있으면 value에 <Amount value={n} unit="원" typography="t1" />로 핵심 숫자를 크게 박아라.
- * - 1차 진입 액션은 SummaryHero 카드 내부 버튼(display="block", 전체폭)에 둔다.
- *   → 화면 중앙 부유/좌측 글자폭 버튼 금지. 하단 TabBar가 있으면 SubmitFooter와 겹치므로 카드 안에.
- * - 핵심 정보는 raw <div>가 아니라 Card로 묶어 위계를 만든다.
- * - 하단 탭이 필요하면(2~5탭): bottom={<FloatingTabBar items={[{label,path}...]} />}.
- *   ('TDS TabBar'는 존재하지 않는다 — 직접 만들지 말고 FloatingTabBar를 써라.)
- * - 카피는 CLAUDE.md "카피 규칙 — AI 냄새 금지"를 따른다: 기능 나열식 홍보 문구·상투구·
- *   generic 버튼("시작하기") 금지. 이 파일의 예시 문구도 앱 맥락에 맞게 교체 대상이다.
- *
- * Scaffold tokens (replaced by scaffold-toss.ts at project creation):
- *   ScoreClimb -> the app's display name
- *   매일 미션을 수행하며 신용점수를 게임처럼 올리는 습관 트래커    -> the one-line description
+ * 추천 미션 목록은 마운트 시점 완료 상태로 한 번만 고정한다(useRef) — 미션을
+ * 토글해도 목록에서 사라지지 않고 Chip(완료/하기)만 즉시 갱신된다.
+ * FloatingTabBar는 App.tsx 셸이 한 번만 렌더한다 — 여기서 다시 넣지 않는다.
  */
-
-// ⚠ 이 목록은 골격 예시다 — 앱의 실제 콘텐츠(핵심 지표·최근 기록·바로가기)로 반드시 교체하라.
-// '간편한 사용/빠른 처리' 같은 기능 나열식 홍보 문구는 카피 규칙(CLAUDE.md "AI 냄새 금지") 위반이다.
-// 사용자가 이 화면에서 실제로 확인할 정보를 넣어라 — 아래처럼 데이터가 사는 행으로.
-const HIGHLIGHTS = [
-  { title: '오늘', description: '아직 기록이 없어요' },
-  { title: '이번 주', description: '기록 3건 · 평균 12분' },
-];
-
 export default function Home() {
   const navigate = useNavigate();
+  const { loading, profile, missionLogs, streak, actions } = useAppData();
+
+  const today = todayKey();
+  const todayLog: DailyMissionLog = missionLogs[today] ?? {
+    date: today,
+    completedMissionIds: [],
+    totalPoints: 0,
+  };
+
+  const initialTodayLogRef = useRef(todayLog);
+  const recommended = useMemo(
+    () => (profile ? recommendMissions(profile, initialTodayLogRef.current) : []),
+    [profile]
+  );
+
+  if (loading || !profile) {
+    return (
+      <ScreenScaffold top={<Top title={<Top.TitleParagraph>ScoreClimb</Top.TitleParagraph>} />}>
+        <SummaryHero
+          label="내 신용점수"
+          value={
+            <Paragraph.Text typography="t1" color="tertiary">
+              —
+            </Paragraph.Text>
+          }
+          testId="home-hero"
+        />
+      </ScreenScaffold>
+    );
+  }
+
+  const done = todayLog.completedMissionIds.length;
 
   return (
     <ScreenScaffold
-      top={<Top title={<Top.TitleParagraph>ScoreClimb</Top.TitleParagraph>} />}
+      top={
+        <Top
+          title={<Top.TitleParagraph>ScoreClimb</Top.TitleParagraph>}
+          right={
+            <Button variant="weak" size="small" onClick={() => navigate('/onboarding')}>
+              현황 수정
+            </Button>
+          }
+        />
+      }
     >
-      {/* 시각 앵커: 헤드라인 + 카드 내 진입 버튼(부유 금지, display="block" 전체폭).
-          데이터 앱이면 value를 <Amount typography="t1" />(핵심 숫자)로 교체하라. */}
       <SummaryHero
-        label="ScoreClimb"
-        value={<Paragraph.Text typography="t2">매일 미션을 수행하며 신용점수를 게임처럼 올리는 습관 트래커</Paragraph.Text>}
-        caption="로그인 없이 바로 쓸 수 있어요"
-        action={
-          // 라벨은 앱의 핵심 행동 동사로 교체하라 — "연봉 계산하기"/"기록 남기기" 등.
-          // generic "시작하기"/"확인"은 카피 규칙 위반. onClick도 실제 첫 화면 경로로.
-          <Button variant="fill" display="block" onClick={() => navigate('/')}>
-            첫 결과 보기
-          </Button>
-        }
+        label="내 신용점수"
+        value={<Amount value={profile.score} unit="점" typography="t1" testId="home-score-amount" />}
+        caption={`${streak.current}일 연속 미션 달성 중이에요`}
         testId="home-hero"
       />
 
+      <Spacing size={16} />
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Card style={{ flex: 1 }} testId="home-today-missions-card">
+          <ListRow
+            contents={
+              <ListRow.Texts type="2RowTypeA" top="오늘 미션" bottom={`${done}/${TOTAL_MISSIONS} 완료`} />
+            }
+          />
+        </Card>
+        <Card style={{ flex: 1 }} testId="home-today-points-card">
+          <ListRow
+            contents={
+              <ListRow.Texts
+                type="2RowTypeA"
+                top="오늘 점수"
+                bottom={`${todayLog.totalPoints}/${TOTAL_POINTS}점`}
+              />
+            }
+          />
+        </Card>
+      </div>
+
       <Spacing size={24} />
 
-      {/* 핵심 정보는 Card로 묶기(raw div 금지) — 위계 생성 */}
-      <Card testId="home-highlights">
-        {HIGHLIGHTS.map((h, idx) => (
-          <ListRow
-            key={idx}
-            contents={<ListRow.Texts type="2RowTypeA" top={h.title} bottom={h.description} />}
-          />
-        ))}
+      <Paragraph.Text typography="t4">오늘의 미션</Paragraph.Text>
+      <Spacing size={12} />
+
+      <Card testId="home-recommend-card">
+        {recommended.map((mission) => {
+          const isDone = todayLog.completedMissionIds.includes(mission.id);
+          return (
+            <ListRow
+              key={mission.id}
+              data-testid="recommend-mission-row"
+              onClick={() => navigate('/missions')}
+              contents={
+                <ListRow.Texts type="2RowTypeA" top={mission.title} bottom={`+${mission.points}점`} />
+              }
+              right={
+                <Chip
+                  variant={isDone ? 'fill' : 'weak'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    try {
+                      actions.toggleMission(mission.id);
+                    } catch {
+                      /* best-effort — UI는 낙관적으로 갱신됨 */
+                    }
+                  }}
+                >
+                  {isDone ? '완료' : '하기'}
+                </Chip>
+              }
+            />
+          );
+        })}
       </Card>
+
+      <Spacing size={16} />
+
+      <Button variant="weak" size="large" display="block" onClick={() => navigate('/missions')}>
+        미션 전체 보기
+      </Button>
+
+      <Spacing size={24} />
+      <Border />
+      <Spacing size={16} />
+
+      <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID} />
 
       <Spacing size={24} />
     </ScreenScaffold>
