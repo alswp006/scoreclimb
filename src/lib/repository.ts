@@ -1,26 +1,3 @@
-/**
- * Entity CRUD + Range Validation Type Guards
- *
- * Provides load/save functions for all app entities with localStorage persistence.
- * All save functions validate ranges and return SaveResult.
- *
- * Storage keys:
- * - 'scoreclimb.profile.v1' (CreditProfile)
- * - 'scoreclimb.scoreHistory.v1' (ScoreSnapshot[])
- * - 'scoreclimb.missionLogs.v1' (MissionLogMap)
- * - 'scoreclimb.streak.v1' (StreakState)
- * - 'scoreclimb.badges.v1' (BadgeState)
- * - 'scoreclimb.lastSimulation.v1' (SimulationResult)
- * - 'scoreclimb.flags.v1' (AppFlags)
- *
- * Validation ranges:
- * - score: 350~1000
- * - birthYear: 1960~2010
- * - cardUsageRatio: 0~100
- * - loanCount: 0~10
- * - missionLogs: max 180 entries (FIFO eviction)
- */
-
 import type {
   CreditProfile,
   ScoreSnapshot,
@@ -32,153 +9,235 @@ import type {
   AppFlags,
   SaveResult,
 } from "@/lib/types";
+import {
+  STORAGE_KEYS,
+  DEFAULT_FLAGS,
+  DEFAULT_STREAK,
+  DEFAULT_BADGES,
+  MAX_MISSION_LOG_DAYS,
+  MAX_SCORE_HISTORY,
+} from "@/lib/constants";
+import { storage } from "@/lib/storage";
 
-// ============================================================================
-// Profile (CreditProfile)
-// ============================================================================
+// ---------------------------------------------------------------------------
+// Type guards — hand-written (no zod). Validate shape only; range validation
+// for CreditProfile happens separately at save-time via validateProfile().
+// ---------------------------------------------------------------------------
 
-export async function saveProfile(
-  profile: Omit<CreditProfile, "updatedAt">
-): Promise<SaveResult> {
-  // TODO: Implement with range validation
-  // score: 350~1000 → "점수는 350~1000 사이여야 해요"
-  // birthYear: 1960~2010 → "출생연도는 1960~2010 사이여야 해요"
-  // cardUsageRatio: 0~100 → "카드 사용률은 0~100 사이여야 해요"
-  // loanCount: 0~10 → "대출 건수는 0~10 사이여야 해요"
-  // Set updatedAt to current ISO 8601 timestamp
-  throw new Error("Not implemented");
+function isCreditProfile(v: unknown): v is CreditProfile {
+  if (typeof v !== "object" || v === null) return false;
+  const p = v as Record<string, unknown>;
+  return (
+    typeof p.score === "number" &&
+    typeof p.birthYear === "number" &&
+    typeof p.cardUsageRatio === "number" &&
+    typeof p.loanCount === "number" &&
+    typeof p.updatedAt === "string"
+  );
 }
 
-export async function loadProfile(): Promise<CreditProfile | null> {
-  // TODO: Implement
-  // Load from 'scoreclimb.profile.v1'
-  // Return null if not found
-  throw new Error("Not implemented");
+function isScoreSnapshot(v: unknown): v is ScoreSnapshot {
+  if (typeof v !== "object" || v === null) return false;
+  const s = v as Record<string, unknown>;
+  return typeof s.date === "string" && typeof s.score === "number";
 }
 
-// ============================================================================
-// Score History (ScoreSnapshot[])
-// ============================================================================
-
-export async function saveScoreHistory(
-  snapshots: ScoreSnapshot[]
-): Promise<SaveResult> {
-  // TODO: Implement
-  // Save to 'scoreclimb.scoreHistory.v1'
-  // Max 90 snapshots (FIFO eviction if needed)
-  throw new Error("Not implemented");
+function isScoreHistory(v: unknown): v is ScoreSnapshot[] {
+  return Array.isArray(v) && v.every(isScoreSnapshot);
 }
 
-export async function loadScoreHistory(): Promise<ScoreSnapshot[]> {
-  // TODO: Implement
-  // Load from 'scoreclimb.scoreHistory.v1'
-  // Return [] if not found
-  throw new Error("Not implemented");
+function isDailyMissionLog(v: unknown): v is DailyMissionLog {
+  if (typeof v !== "object" || v === null) return false;
+  const l = v as Record<string, unknown>;
+  return (
+    typeof l.date === "string" &&
+    Array.isArray(l.completedMissionIds) &&
+    l.completedMissionIds.every((id) => typeof id === "string") &&
+    typeof l.totalPoints === "number"
+  );
 }
 
-export async function upsertSnapshot(
-  snapshot: ScoreSnapshot
-): Promise<SaveResult> {
-  // TODO: Implement
-  // Load current history
-  // If snapshot.date exists, update score
-  // If snapshot.date does not exist, add new snapshot
-  // Max 90 snapshots total (FIFO eviction if adding new and at limit)
-  // Save back to 'scoreclimb.scoreHistory.v1'
-  throw new Error("Not implemented");
+function isMissionLogMap(v: unknown): v is MissionLogMap {
+  if (typeof v !== "object" || v === null) return false;
+  return Object.values(v as Record<string, unknown>).every(isDailyMissionLog);
 }
 
-// ============================================================================
-// Mission Logs (MissionLogMap)
-// ============================================================================
-
-export async function loadMissionLogs(): Promise<MissionLogMap> {
-  // TODO: Implement
-  // Load from 'scoreclimb.missionLogs.v1'
-  // Return {} if not found
-  // Do NOT write to localStorage on empty load
-  throw new Error("Not implemented");
+function isStreakState(v: unknown): v is StreakState {
+  if (typeof v !== "object" || v === null) return false;
+  const s = v as Record<string, unknown>;
+  return (
+    typeof s.current === "number" &&
+    typeof s.longest === "number" &&
+    (typeof s.lastCompletedDate === "string" || s.lastCompletedDate === null) &&
+    typeof s.totalCompletedMissions === "number"
+  );
 }
 
-export async function saveMissionLog(
-  log: DailyMissionLog
-): Promise<SaveResult> {
-  // TODO: Implement
-  // Load current missionLogs
-  // Add or update log by date
-  // Max 180 entries (FIFO eviction: delete oldest date if adding new and at limit)
-  // Save to 'scoreclimb.missionLogs.v1'
-  throw new Error("Not implemented");
+function isBadgeState(v: unknown): v is BadgeState {
+  if (typeof v !== "object" || v === null) return false;
+  const b = v as Record<string, unknown>;
+  return (
+    Array.isArray(b.unlockedBadgeIds) &&
+    b.unlockedBadgeIds.every((id) => typeof id === "string") &&
+    typeof b.unlockedAt === "object" &&
+    b.unlockedAt !== null
+  );
 }
 
-// ============================================================================
-// Streak (StreakState)
-// ============================================================================
-
-export async function loadStreak(): Promise<StreakState | null> {
-  // TODO: Implement
-  // Load from 'scoreclimb.streak.v1'
-  // Return null if not found
-  throw new Error("Not implemented");
+function isAppFlags(v: unknown): v is AppFlags {
+  if (typeof v !== "object" || v === null) return false;
+  const f = v as Record<string, unknown>;
+  return (
+    typeof f.onboardingDone === "boolean" &&
+    (typeof f.disclaimerAckedAt === "string" || f.disclaimerAckedAt === null)
+  );
 }
 
-export async function saveStreak(streak: StreakState): Promise<SaveResult> {
-  // TODO: Implement
-  // Save to 'scoreclimb.streak.v1'
-  throw new Error("Not implemented");
+function isSimulationResult(v: unknown): v is SimulationResult {
+  if (typeof v !== "object" || v === null) return false;
+  const s = v as Record<string, unknown>;
+  return (
+    typeof s.input === "object" &&
+    s.input !== null &&
+    typeof s.predictedScore === "number" &&
+    typeof s.delta === "number" &&
+    Array.isArray(s.monthlyProjection) &&
+    Array.isArray(s.factors) &&
+    typeof s.createdAt === "string"
+  );
 }
 
-// ============================================================================
-// Badges (BadgeState)
-// ============================================================================
+// ---------------------------------------------------------------------------
+// Range validation (Korean messages, exact strings required by spec)
+// ---------------------------------------------------------------------------
 
-export async function loadBadges(): Promise<BadgeState> {
-  // TODO: Implement
-  // Load from 'scoreclimb.badges.v1'
-  // Return { unlockedBadgeIds: [], unlockedAt: {} } if not found
-  // Do NOT write to localStorage on empty load
-  throw new Error("Not implemented");
+function validateProfile(profile: Omit<CreditProfile, "updatedAt">): string | null {
+  if (profile.score < 350 || profile.score > 1000) {
+    return "점수는 350~1000 사이여야 해요";
+  }
+  if (profile.birthYear < 1960 || profile.birthYear > 2010) {
+    return "출생연도는 1960~2010 사이여야 해요";
+  }
+  if (profile.cardUsageRatio < 0 || profile.cardUsageRatio > 100) {
+    return "카드 사용률은 0~100 사이여야 해요";
+  }
+  if (profile.loanCount < 0 || profile.loanCount > 10) {
+    return "대출 건수는 0~10 사이여야 해요";
+  }
+  return null;
 }
 
-export async function saveBadges(badges: BadgeState): Promise<SaveResult> {
-  // TODO: Implement
-  // Save to 'scoreclimb.badges.v1'
-  throw new Error("Not implemented");
+// ---------------------------------------------------------------------------
+// Profile
+// ---------------------------------------------------------------------------
+
+export function loadProfile(): CreditProfile | null {
+  return storage.get<CreditProfile | null>(
+    STORAGE_KEYS.profile,
+    null,
+    (v): v is CreditProfile | null => v === null || isCreditProfile(v)
+  );
 }
 
-// ============================================================================
-// Last Simulation (SimulationResult)
-// ============================================================================
-
-export async function loadLastSimulation(): Promise<SimulationResult | null> {
-  // TODO: Implement
-  // Load from 'scoreclimb.lastSimulation.v1'
-  // Return null if not found
-  throw new Error("Not implemented");
+export function saveProfile(profile: Omit<CreditProfile, "updatedAt">): SaveResult {
+  const error = validateProfile(profile);
+  if (error) return { ok: false, error };
+  const full: CreditProfile = { ...profile, updatedAt: new Date().toISOString() };
+  return storage.set(STORAGE_KEYS.profile, full);
 }
 
-export async function saveLastSimulation(
-  result: SimulationResult
-): Promise<SaveResult> {
-  // TODO: Implement
-  // Save to 'scoreclimb.lastSimulation.v1'
-  throw new Error("Not implemented");
+// ---------------------------------------------------------------------------
+// Score history (max 90, FIFO)
+// ---------------------------------------------------------------------------
+
+export function loadScoreHistory(): ScoreSnapshot[] {
+  return storage.get<ScoreSnapshot[]>(STORAGE_KEYS.scoreHistory, [], isScoreHistory);
 }
 
-// ============================================================================
-// Flags (AppFlags)
-// ============================================================================
+export function upsertSnapshot(snapshot: ScoreSnapshot): SaveResult {
+  const history = loadScoreHistory();
+  const idx = history.findIndex((s) => s.date === snapshot.date);
+  const next = idx >= 0 ? history.slice() : [...history, snapshot];
+  if (idx >= 0) next[idx] = snapshot;
 
-export async function loadFlags(): Promise<AppFlags> {
-  // TODO: Implement
-  // Load from 'scoreclimb.flags.v1'
-  // Return { onboardingDone: false, disclaimerAckedAt: null } if not found
-  // Do NOT write to localStorage on empty load
-  throw new Error("Not implemented");
+  const trimmed =
+    next.length > MAX_SCORE_HISTORY
+      ? next.slice(next.length - MAX_SCORE_HISTORY)
+      : next;
+
+  return storage.set(STORAGE_KEYS.scoreHistory, trimmed);
 }
 
-export async function saveFlags(flags: AppFlags): Promise<SaveResult> {
-  // TODO: Implement
-  // Save to 'scoreclimb.flags.v1'
-  throw new Error("Not implemented");
+// ---------------------------------------------------------------------------
+// Mission logs (max 180 days, FIFO by date key)
+// ---------------------------------------------------------------------------
+
+export function loadMissionLogs(): MissionLogMap {
+  return storage.get<MissionLogMap>(STORAGE_KEYS.missionLogs, {}, isMissionLogMap);
+}
+
+export function saveMissionLog(log: DailyMissionLog): SaveResult {
+  const logs = loadMissionLogs();
+  const next: MissionLogMap = { ...logs, [log.date]: log };
+
+  const dates = Object.keys(next).sort();
+  if (dates.length > MAX_MISSION_LOG_DAYS) {
+    for (const date of dates.slice(0, dates.length - MAX_MISSION_LOG_DAYS)) {
+      delete next[date];
+    }
+  }
+
+  return storage.set(STORAGE_KEYS.missionLogs, next);
+}
+
+// ---------------------------------------------------------------------------
+// Streak
+// ---------------------------------------------------------------------------
+
+export function loadStreak(): StreakState {
+  return storage.get<StreakState>(STORAGE_KEYS.streak, DEFAULT_STREAK, isStreakState);
+}
+
+export function saveStreak(streak: StreakState): SaveResult {
+  return storage.set(STORAGE_KEYS.streak, streak);
+}
+
+// ---------------------------------------------------------------------------
+// Badges
+// ---------------------------------------------------------------------------
+
+export function loadBadges(): BadgeState {
+  return storage.get<BadgeState>(STORAGE_KEYS.badges, DEFAULT_BADGES, isBadgeState);
+}
+
+export function saveBadges(badges: BadgeState): SaveResult {
+  return storage.set(STORAGE_KEYS.badges, badges);
+}
+
+// ---------------------------------------------------------------------------
+// Last simulation
+// ---------------------------------------------------------------------------
+
+export function loadLastSimulation(): SimulationResult | null {
+  return storage.get<SimulationResult | null>(
+    STORAGE_KEYS.lastSimulation,
+    null,
+    (v): v is SimulationResult | null => v === null || isSimulationResult(v)
+  );
+}
+
+export function saveLastSimulation(result: SimulationResult): SaveResult {
+  return storage.set(STORAGE_KEYS.lastSimulation, result);
+}
+
+// ---------------------------------------------------------------------------
+// Flags
+// ---------------------------------------------------------------------------
+
+export function loadFlags(): AppFlags {
+  return storage.get<AppFlags>(STORAGE_KEYS.flags, DEFAULT_FLAGS, isAppFlags);
+}
+
+export function saveFlags(flags: AppFlags): SaveResult {
+  return storage.set(STORAGE_KEYS.flags, flags);
 }
